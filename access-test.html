@@ -12,7 +12,7 @@
   <h1>Permission rules test</h1>
   <ul id="out"></ul>
   <p id="verdict"></p>
-  <script type="module">
+    <script type="module">
     import { ACTIONS as A, can, check, assertCan, PermissionError } from './js/core/access-control.js';
     const out = document.getElementById('out');
     let failed = 0, total = 0;
@@ -41,10 +41,12 @@
     expect('Lead cannot confirm a deployment', can(lead, A.DEPLOYMENT_CONFIRM), false);
     expect('Lead cannot approve a recall', can(lead, A.RECALL_DECIDE), false);
     expect('Lead cannot confirm a recall', can(lead, A.RECALL_CONFIRM), false);
-    expect('Lead cannot edit restricted fields directly', can(lead, A.EMPLOYEE_EDIT_RESTRICTED), false);
-    expect('Lead can ask for a restricted change', can(lead, A.CHANGE_REQUEST_CREATE), true);
+    expect('Lead can edit every employee field (in scope)', can(lead, A.EMPLOYEE_EDIT_OPERATIONAL, { site: 'KOPPAL', department: 'CIVIL' }) && can(lead, A.EMPLOYEE_EDIT_RESTRICTED, { site: 'KOPPAL', department: 'CIVIL' }), true);
+    expect('Lead can add employees (in scope)', can(lead, A.EMPLOYEE_ADD, { site: 'KOPPAL', department: 'CIVIL' }), true);
+    expect('Lead cannot send a request back', can(lead, A.DEPLOYMENT_RETURN) || can(lead, A.RECALL_RETURN), false);
+    expect('Lead cannot edit in another department', can(lead, A.EMPLOYEE_EDIT_RESTRICTED, { site: 'KOPPAL', department: 'MECHANICAL' }), false);
     expect('Lead cannot import Excel or remove files', can(lead, A.IMPORT_UPLOAD) || can(lead, A.FILE_REMOVE), false);
-    expect('Lead cannot see sensitive fields', can(lead, A.VIEW_SENSITIVE), false);
+    expect('Lead can see sensitive fields (needed to edit them)', can(lead, A.VIEW_SENSITIVE), true);
     expect('Lead is blocked from another site', can(lead, A.DEPLOYMENT_CREATE, { site: 'FATEHGARH' }), false);
     expect('Lead is blocked from another department', can(lead, A.EMPLOYEE_EDIT_OPERATIONAL, { site: 'KOPPAL', department: 'MECHANICAL' }), false);
     expect('Lead can cancel own submitted request', can(lead, A.DEPLOYMENT_CANCEL, { requestedByUserID: 'l', status: 'Submitted' }), true);
@@ -54,6 +56,9 @@
     // PM
     expect('PM can approve and confirm deployments', can(pm, A.DEPLOYMENT_DECIDE) && can(pm, A.DEPLOYMENT_CONFIRM), true);
     expect('PM can approve and confirm recalls', can(pm, A.RECALL_DECIDE) && can(pm, A.RECALL_CONFIRM), true);
+    expect('PM can send requests back', can(pm, A.DEPLOYMENT_RETURN) && can(pm, A.RECALL_RETURN), true);
+    expect('PM can edit and add employees', can(pm, A.EMPLOYEE_ADD) && can(pm, A.EMPLOYEE_EDIT_RESTRICTED), true);
+    expect('A user with no scope is refused', can({ userID: 'n', systemRole: 'LEAD', siteScope: [], departmentScope: [] }, A.EMPLOYEE_EDIT_OPERATIONAL, { site: 'KOPPAL' }), false);
     expect('PM can import Excel and remove files', can(pm, A.IMPORT_UPLOAD) && can(pm, A.IMPORT_CONFIRM) && can(pm, A.FILE_REMOVE), true);
     expect('PM cannot raise requests (Lead only)', can(pm, A.DEPLOYMENT_CREATE) || can(pm, A.RECALL_CREATE), false);
     expect('PM can see sensitive fields', can(pm, A.VIEW_SENSITIVE), true);
