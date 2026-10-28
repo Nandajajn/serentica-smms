@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Serentica Site Manpower Management System</title>
+  <meta http-equiv="refresh" content="0; url=login.html">
+</head>
+<body>
+  <p><a href="login.html">Continue to sign in</a></p>
+  <script type="module">
+    import { getSession } from './js/services/auth-service.js';
+    location.replace(getSession() ? 'dashboard.html' : 'login.html');
+  </script>
+</body>
+</html>
