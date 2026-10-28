@@ -1,37 +1,42 @@
-// Stage 2 STUB authentication.
-// Demo accounts only. Stage 3 replaces this with hashed credentials in the shared
-// data store. sessionStorage can be edited by anyone using browser dev tools, so this
-// is NOT real security. Production needs server-side authentication.
+// Prototype authentication against the demo users in the shared database.
+// Passwords are stored as salted hashes, but the session lives in sessionStorage and
+// the checking happens in the browser, so this is NOT real security. Production needs
+// server-side authentication.
 import { ROLES, STORAGE_KEYS } from '../core/constants.js';
+import { getAll, write } from '../core/store.js';
+import { hashPassword } from '../core/utils.js';
+import { DEMO_USER_SEEDS } from '../seed/seed-data.js';
+import { addAudit } from './audit-service.js';
+import { ensureSeeded } from './seed-service.js';
 
-const DEMO_USERS = Object.freeze([
-  { userID: 'U-DEMO-ADMIN', username: 'admin.demo', email: 'admin@demo.serentica.example',
-    password: 'Admin@123', displayName: 'Demo Admin', systemRole: ROLES.ADMIN },
-  { userID: 'U-DEMO-LEAD', username: 'lead.demo', email: 'lead@demo.serentica.example',
-    password: 'Lead@123', displayName: 'Demo Lead', systemRole: ROLES.LEAD },
-  { userID: 'U-DEMO-PM', username: 'pm.demo', email: 'pm@demo.serentica.example',
-    password: 'Manager@123', displayName: 'Demo Project Manager', systemRole: ROLES.PM },
-]);
-
-/** Demo accounts for display on the login page (passwords are demo-only). */
+/** Demo accounts shown on the login page (demo only). */
 export function listDemoAccounts() {
-  return DEMO_USERS.map(({ username, password, systemRole }) => ({ username, password, systemRole }));
+  return DEMO_USER_SEEDS.map(({ username, password, systemRole }) => ({ username, password, systemRole }));
 }
 
-export function login(identifier, password) {
+export async function login(identifier, password) {
   const id = String(identifier || '').trim().toLowerCase();
   const pw = String(password || '');
   if (!id || !pw) return { ok: false, error: 'Enter your username or email and your password.' };
 
-  const user = DEMO_USERS.find(
-    (u) => (u.username.toLowerCase() === id || u.email.toLowerCase() === id) && u.password === pw
-  );
-  if (!user) return { ok: false, error: 'The username or password is incorrect.' };
+  await ensureSeeded();
+  const users = await getAll('users');
+  const user = users.find((u) => u.username.toLowerCase() === id || u.email.toLowerCase() === id);
+  const valid = user && (await hashPassword(pw, user.salt)) === user.passwordHash;
+
+  if (!valid) {
+    await write('auditEvents', (tx) => addAudit(tx, {
+      actor: null, action: 'LOGIN_FAILED', recordType: 'user', recordID: id, reason: 'Incorrect username or password.',
+    }));
+    return { ok: false, error: 'The username or password is incorrect.' };
+  }
 
   const session = {
     userID: user.userID, username: user.username, displayName: user.displayName,
-    systemRole: user.systemRole, loggedInAt: new Date().toISOString(),
+    systemRole: user.systemRole, siteScope: user.siteScope, departmentScope: user.departmentScope,
+    loggedInAt: new Date().toISOString(),
   };
+  await write('auditEvents', (tx) => addAudit(tx, { actor: session, action: 'LOGIN', recordType: 'user', recordID: user.userID }));
   sessionStorage.setItem(STORAGE_KEYS.session, JSON.stringify(session));
   return { ok: true, user: session };
 }
