@@ -2,7 +2,7 @@
 // Every function checks permissions first, validates, and writes the change and its
 // audit record in ONE transaction.
 import { getAll, getOne, write } from '../core/store.js';
-import { ACTIONS, PermissionError, assertCan, can } from '../core/access-control.js';
+import { ACTIONS, assertCan, can } from '../core/access-control.js';
 import { ROLES } from '../core/constants.js';
 import { nowISO } from '../core/utils.js';
 import { OPERATIONAL_FIELDS, RESTRICTED_FIELDS, SENSITIVE_FIELDS } from '../core/reference-data.js';
@@ -61,7 +61,7 @@ export function deriveLeadership(employees, employeeID) {
 /* ---------- add ---------- */
 export async function addEmployee(user, data) {
   const input = normaliseEmployee(data);
-  assertCan(user, ACTIONS.EMPLOYEE_ADD, { site: input.baseSite });
+  assertCan(user, ACTIONS.EMPLOYEE_ADD, { site: input.baseSite, department: input.department });
 
   return write(['employees', 'sites', 'auditEvents'], async (tx) => {
     const employees = await tx.getAll('employees');
@@ -106,15 +106,13 @@ export async function updateEmployee(user, employeeID, changes, reason = '') {
     const changed = Object.keys(changes).filter((k) => JSON.stringify(merged[k] ?? null) !== JSON.stringify(current[k] ?? null));
     if (!changed.length) return present(user, current); // nothing to do, nothing to audit
 
-    const context = { site: current.baseSite, department: current.department };
-    const restricted = changed.filter((k) => RESTRICTED_FIELDS.includes(k));
-    if (restricted.length) {
-      if (user.systemRole === ROLES.LEAD) {
-        throw new PermissionError(`Changing ${restricted.join(', ')} needs Project Manager approval. Submit a change request instead.`);
-      }
-      assertCan(user, ACTIONS.EMPLOYEE_EDIT_RESTRICTED, context);
-    }
+        const context = { site: current.baseSite, department: current.department };
+    if (changed.some((k) => RESTRICTED_FIELDS.includes(k))) assertCan(user, ACTIONS.EMPLOYEE_EDIT_RESTRICTED, context);
     if (changed.some((k) => OPERATIONAL_FIELDS.includes(k))) assertCan(user, ACTIONS.EMPLOYEE_EDIT_OPERATIONAL, context);
+    // The new site or department must also be inside the user's scope (no moving people out of reach).
+    if (changed.includes('baseSite') || changed.includes('department')) {
+      assertCan(user, ACTIONS.EMPLOYEE_EDIT_RESTRICTED, { site: merged.baseSite, department: merged.department });
+    }
 
     const employees = await tx.getAll('employees');
     const siteCodes = (await tx.getAll('sites')).map((s) => s.siteCode);
