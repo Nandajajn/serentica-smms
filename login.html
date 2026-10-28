@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <title>Sign in | Serentica Site Manpower Management System</title>
+  <style>
+    .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(300px, 5fr) 6fr; }
+    .login-intro { background: var(--primary-dark); color: #fff; padding: var(--space-7); display: flex; flex-direction: column; justify-content: center; gap: var(--space-4); }
+    .login-intro .brand { color: #fff; }
+    .login-intro .brand-mark { background: #fff; color: var(--primary-dark); }
+    .login-intro .brand-sub { color: rgba(255,255,255,.8); }
+    .login-intro h1 { font-size: var(--fs-2xl); margin-top: var(--space-5); }
+    .login-intro p { color: rgba(255,255,255,.88); }
+    .login-panel { display: grid; place-items: center; padding: var(--space-5); }
+    .login-box { width: 100%; max-width: 400px; }
+    .demo-box { margin-top: var(--space-5); padding: var(--space-4); border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); }
+    .demo-box h2 { font-size: var(--fs-base); display: flex; gap: var(--space-2); align-items: center; }
+    .demo-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--border); font-size: var(--fs-sm); }
+    .demo-row:first-of-type { border-top: 0; }
+    .demo-row code { color: var(--muted); }
+    @media (max-width: 800px) { .login-page { grid-template-columns: 1fr; } .login-intro { padding: var(--space-5); } .login-intro h1 { font-size: var(--fs-xl); } }
+  </style>
+</head>
+<body>
+  <main class="login-page" id="page-content">
+    <section class="login-intro" aria-label="About the system">
+      <div class="brand">
+        <span class="brand-mark"><i class="fa-solid fa-solar-panel" aria-hidden="true"></i></span>
+        <span class="brand-name">Serentica<span class="brand-sub">Site Manpower Management</span></span>
+      </div>
+      <h1>Manage site manpower in one place</h1>
+      <p>Employee records, reporting lines, deployments and recalls for wind and solar project sites, with Project Manager approval at every step.</p>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-box">
+        <h2 style="font-size: var(--fs-xl)">Sign in</h2>
+        <div id="login-error" class="alert alert-error" role="alert" hidden></div>
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label for="identifier">Username or email</label>
+            <input class="input" id="identifier" name="identifier" type="text" autocomplete="username" required>
+            <span class="field-error" id="identifier-error"></span>
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <div class="input-group">
+              <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+              <button class="icon-btn" id="toggle-password" type="button" aria-label="Show password"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+            </div>
+            <span class="field-error" id="password-error"></span>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+        </form>
+
+        <div class="demo-box">
+          <h2><span class="badge badge-demo">DEMO</span> Demonstration accounts</h2>
+          <p class="muted" style="font-size: var(--fs-sm)">These accounts are for the prototype only. They are not real employee credentials.</p>
+          <div id="demo-accounts"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="js/pages/login.js"></script>
+</body>
+</html>
