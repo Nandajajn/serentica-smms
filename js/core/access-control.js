@@ -81,11 +81,11 @@ export function check(user, action, context = {}) {
 
   // Admin sees everything; Lead and PM are limited to their assigned sites/departments.
   if (user.systemRole !== ROLES.ADMIN) {
-    if (context.site && user.siteScope?.length && !user.siteScope.includes(context.site)) {
+        if (context.site && !(user.siteScope || []).includes(context.site)) {
       return deny('This record is outside your site.');
     }
-    if (user.systemRole === ROLES.LEAD && context.department && user.departmentScope?.length
-        && !user.departmentScope.includes(context.department)) {
+       if (user.systemRole === ROLES.LEAD && context.department
+        && !(user.departmentScope || []).includes(context.department)) {
       return deny('This record is outside your department.');
     }
   }
