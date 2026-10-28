@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Permission test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 5px 0; } .ok { color: #2E8B57; } .bad { color: #C0392B; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Permission rules test</h1>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    import { ACTIONS as A, can, check, assertCan, PermissionError } from './js/core/access-control.js';
+    const out = document.getElementById('out');
+    let failed = 0, total = 0;
+    function expect(name, actual, wanted) {
+      total++;
+      const pass = actual === wanted;
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'bad';
+      li.textContent = (pass ? 'OK: ' : 'PROBLEM: ') + name;
+      out.append(li);
+      if (!pass) failed++;
+    }
+    const admin = { userID: 'a', systemRole: 'ADMIN' };
+    const lead = { userID: 'l', systemRole: 'LEAD', siteScope: ['KOPPAL'], departmentScope: ['CIVIL'] };
+    const pm = { userID: 'p', systemRole: 'PM', siteScope: ['KOPPAL'] };
+
+    // Admin: read-only
+    const writes = Object.values(A).filter((a) => !['view.pages','view.employees','view.sensitive','view.audit','export.data'].includes(a));
+    expect('Admin is refused every one of the ' + writes.length + ' change actions', writes.every((a) => !can(admin, a)), true);
+    expect('Admin can view pages and employees', can(admin, A.VIEW_PAGES) && can(admin, A.VIEW_EMPLOYEES), true);
+
+    // Lead
+    expect('Lead can create a deployment request', can(lead, A.DEPLOYMENT_CREATE, { site: 'KOPPAL', department: 'CIVIL' }), true);
+    expect('Lead can create a recall request', can(lead, A.RECALL_CREATE), true);
+    expect('Lead cannot approve a deployment', can(lead, A.DEPLOYMENT_DECIDE), false);
+    expect('Lead cannot confirm a deployment', can(lead, A.DEPLOYMENT_CONFIRM), false);
+    expect('Lead cannot approve a recall', can(lead, A.RECALL_DECIDE), false);
+    expect('Lead cannot confirm a recall', can(lead, A.RECALL_CONFIRM), false);
+    expect('Lead cannot edit restricted fields directly', can(lead, A.EMPLOYEE_EDIT_RESTRICTED), false);
+    expect('Lead can ask for a restricted change', can(lead, A.CHANGE_REQUEST_CREATE), true);
+    expect('Lead cannot import Excel or remove files', can(lead, A.IMPORT_UPLOAD) || can(lead, A.FILE_REMOVE), false);
+    expect('Lead cannot see sensitive fields', can(lead, A.VIEW_SENSITIVE), false);
+    expect('Lead is blocked from another site', can(lead, A.DEPLOYMENT_CREATE, { site: 'FATEHGARH' }), false);
+    expect('Lead is blocked from another department', can(lead, A.EMPLOYEE_EDIT_OPERATIONAL, { site: 'KOPPAL', department: 'MECHANICAL' }), false);
+    expect('Lead can cancel own submitted request', can(lead, A.DEPLOYMENT_CANCEL, { requestedByUserID: 'l', status: 'Submitted' }), true);
+    expect("Lead cannot cancel someone else's request", can(lead, A.DEPLOYMENT_CANCEL, { requestedByUserID: 'x', status: 'Submitted' }), false);
+    expect('Lead cannot cancel an approved request', can(lead, A.DEPLOYMENT_CANCEL, { requestedByUserID: 'l', status: 'Approved' }), false);
+
+    // PM
+    expect('PM can approve and confirm deployments', can(pm, A.DEPLOYMENT_DECIDE) && can(pm, A.DEPLOYMENT_CONFIRM), true);
+    expect('PM can approve and confirm recalls', can(pm, A.RECALL_DECIDE) && can(pm, A.RECALL_CONFIRM), true);
+    expect('PM can import Excel and remove files', can(pm, A.IMPORT_UPLOAD) && can(pm, A.IMPORT_CONFIRM) && can(pm, A.FILE_REMOVE), true);
+    expect('PM cannot raise requests (Lead only)', can(pm, A.DEPLOYMENT_CREATE) || can(pm, A.RECALL_CREATE), false);
+    expect('PM can see sensitive fields', can(pm, A.VIEW_SENSITIVE), true);
+    expect('PM is blocked from another site', can(pm, A.DEPLOYMENT_DECIDE, { site: 'FATEHGARH' }), false);
+    expect('PM cannot approve own request', can(pm, A.DEPLOYMENT_DECIDE, { requestedByUserID: 'p' }), false);
+    expect('PM can cancel an approved request', can(pm, A.DEPLOYMENT_CANCEL, { status: 'Approved' }), true);
+    expect('Nobody can cancel a confirmed request', can(pm, A.DEPLOYMENT_CANCEL, { status: 'Confirmed' }), false);
+
+    // General safety
+    expect('Not signed in is refused', can(null, A.VIEW_PAGES), false);
+    expect('An unknown role is refused', can({ systemRole: 'HACKER' }, A.VIEW_PAGES), false);
+    expect('An unknown action is refused', can(pm, 'delete.everything'), false);
+    let threw = false;
+    try { assertCan(admin, A.EMPLOYEE_ADD); } catch (e) { threw = e instanceof PermissionError; }
+    expect('assertCan throws PermissionError when refused', threw, true);
+    expect('A refusal explains why', check(lead, A.DEPLOYMENT_DECIDE).reason.length > 0, true);
+
+    document.getElementById('verdict').textContent =
+      failed === 0 ? 'All good. ' + total + ' of ' + total + ' permission checks passed.' : failed + ' problem(s). Send me a screenshot.';
+  </script>
+</body>
+</html>
