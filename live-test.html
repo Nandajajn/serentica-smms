@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live update test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; }
+    .box { border: 1px solid #DDE3E6; border-radius: 6px; padding: 16px; margin: 16px 0; }
+    #value { font-size: 2rem; font-weight: 600; color: #248895; }
+    button { padding: 9px 16px; margin-right: 8px; border-radius: 6px; border: 1px solid #DDE3E6; background: #fff; cursor: pointer; }
+    button.primary { background: #33A7B5; border-color: #33A7B5; color: #fff; }
+    #flash { min-height: 1.5em; color: #2E8B57; font-weight: 600; }
+    li { margin: 4px 0; font-size: .9rem; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Live update test</h1>
+  <p>Open this same page in <strong>two browser tabs</strong>, side by side. Click <em>Add 1</em> in one tab. The number in the other tab should change by itself, without refreshing.</p>
+  <div class="box">
+    <div>Shared value (stored in the database)</div>
+    <div id="value">…</div>
+    <div id="flash"></div>
+    <button class="primary" id="add">Add 1</button>
+    <button id="reset">Reset to 0</button>
+  </div>
+  <h2>What this tab has heard</h2>
+  <ul id="log"></ul>
+  <script type="module">
+    import { getMeta, setMeta, subscribe, write } from './js/core/store.js';
+    const KEY = 'live-test.value';
+    const valueEl = document.getElementById('value');
+    const flash = document.getElementById('flash');
+    const log = document.getElementById('log');
+
+    async function show() { valueEl.textContent = (await getMeta(KEY)) ?? 0; }
+    function note(text) {
+      const li = document.createElement('li');
+      li.textContent = new Date().toLocaleTimeString() + ': ' + text;
+      log.prepend(li);
+    }
+
+    // Any page that shows shared data does exactly this: subscribe, then re-read and redraw.
+    subscribe('meta', async (e) => {
+      await show();
+      if (e.fromOtherTab) {
+        flash.textContent = 'Updated by another tab';
+        setTimeout(() => (flash.textContent = ''), 2000);
+      }
+      note(e.fromOtherTab ? 'change arrived from another tab' : 'change made in this tab');
+    });
+
+    document.getElementById('add').addEventListener('click', async () => {
+      await write('meta', async (tx) => {
+        const row = await tx.get('meta', KEY);
+        await tx.put('meta', { key: KEY, value: (row ? row.value : 0) + 1 });
+      });
+    });
+    document.getElementById('reset').addEventListener('click', async () => {
+      await write('meta', (tx) => tx.delete('meta', KEY));
+    });
+    await show();
+  </script>
+</body>
+</html>
