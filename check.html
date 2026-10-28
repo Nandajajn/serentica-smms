@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Site check</title>
+  <style>
+    body { font-family: sans-serif; max-width: 680px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 6px 0; }
+    .ok { color: #2E8B57; }
+    .bad { color: #C0392B; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Site check</h1>
+  <p id="where"></p>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    document.getElementById('where').textContent = 'Address: ' + location.href;
+    const out = document.getElementById('out');
+    const files = [
+      'login.html', 'dashboard.html', 'index.html',
+      'css/tokens.css', 'css/base.css', 'css/layout.css', 'css/components.css',
+      'js/core/constants.js', 'js/core/app-init.js',
+      'js/services/auth-service.js', 'js/ui/shell.js',
+      'js/pages/login.js', 'js/pages/dashboard.js'
+    ];
+    let problems = 0;
+    function line(ok, text) {
+      const li = document.createElement('li');
+      li.className = ok ? 'ok' : 'bad';
+      li.textContent = (ok ? 'OK: ' : 'PROBLEM: ') + text;
+      out.append(li);
+      if (!ok) problems++;
+    }
+    for (const f of files) {
+      try {
+        const r = await fetch(f, { cache: 'no-store' });
+        line(r.ok, r.ok ? f : f + ' not found (error ' + r.status + ')');
+      } catch (e) {
+        line(false, f + ' could not be read. Are you on the github.io address?');
+      }
+    }
+    try {
+      await import('./js/core/app-init.js');
+      line(true, 'The JavaScript files load together without errors');
+    } catch (e) {
+      line(false, 'JavaScript error: ' + e.message);
+    }
+    document.getElementById('verdict').textContent =
+      problems === 0 ? 'All good. Everything needed is in place.' : problems + ' problem(s) found. Send me a screenshot of this page.';
+  </script>
+</body>
+</html>
