@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Store test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 680px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 6px 0; } .ok { color: #2E8B57; } .bad { color: #C0392B; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Data store test</h1>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    import { getAll, getOne, write, subscribe, openStore } from './js/core/store.js';
+    const out = document.getElementById('out');
+    let failed = 0;
+    function check(name, pass) {
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'bad';
+      li.textContent = (pass ? 'OK: ' : 'PROBLEM: ') + name;
+      out.append(li);
+      if (!pass) failed++;
+    }
+    const ID = 'TEST-ONLY-001';
+    try {
+      await openStore();
+      check('Database opens', true);
+
+      await write('employees', (tx) => tx.put('employees', { employeeID: ID, employeeName: 'Test Person' }));
+      const saved = await getOne('employees', ID);
+      check('A saved record can be read back', saved && saved.employeeName === 'Test Person');
+
+      let heard = 0;
+      const stop = subscribe('employees', () => { heard++; });
+      await write('employees', (tx) => tx.put('employees', { employeeID: ID, employeeName: 'Renamed' }));
+      check('Subscribers are told about a change', heard === 1);
+      stop();
+      await write('employees', (tx) => tx.put('employees', { employeeID: ID, employeeName: 'Again' }));
+      check('Unsubscribing stops the updates', heard === 1);
+
+      let rejected = false;
+      try {
+        await write(['employees', 'auditEvents'], async (tx) => {
+          await tx.put('employees', { employeeID: ID + '-X', employeeName: 'Should not exist' });
+          await tx.put('auditEvents', { eventID: 'T-AUDIT', action: 'test' });
+          throw new Error('Simulated failure');
+        });
+      } catch (e) { rejected = e.message === 'Simulated failure'; }
+      check('A failing change reports its error', rejected);
+      check('A failing change saves nothing (record)', (await getOne('employees', ID + '-X')) === null);
+      check('A failing change saves nothing (audit)', (await getOne('auditEvents', 'T-AUDIT')) === null);
+
+      let unknown = false;
+      try { await getAll('nonsense'); } catch { unknown = true; }
+      check('Unknown store names are refused', unknown);
+    } catch (e) {
+      check('Unexpected error: ' + e.message, false);
+    } finally {
+      try { await write('employees', (tx) => tx.delete('employees', ID)); } catch {}
+      check('Test record cleaned up', (await getOne('employees', ID)) === null);
+    }
+    document.getElementById('verdict').textContent =
+      failed === 0 ? 'All good. The data store works.' : failed + ' problem(s). Send me a screenshot.';
+  </script>
+</body>
+</html>
