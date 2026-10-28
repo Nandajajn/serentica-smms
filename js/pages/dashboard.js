@@ -6,7 +6,7 @@ const session = initPage({ pageKey: 'dashboard', title: 'Welcome' });
 if (session) {
   const notes = {
     [ROLES.ADMIN]: 'You are signed in with read-only access. You can view all information but cannot add, edit, approve or delete anything.',
-    [ROLES.LEAD]: 'You can update permitted employee details and raise deployment and recall requests. The Project Manager makes the final decision.',
+    [ROLES.LEAD]: 'You can add and edit employee records within your scope and raise deployment and recall requests. The Project Manager makes the final decision.',
     [ROLES.PM]: 'You can review requests, approve or reject them, and confirm deployments and recalls.',
   };
   const note = document.getElementById('role-note');
