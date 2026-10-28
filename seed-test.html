@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Users and audit test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 5px 0; } .ok { color: #2E8B57; } .bad { color: #C0392B; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Users, sites and audit test</h1>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    import { getAll, write } from './js/core/store.js';
+    import { ensureSeeded } from './js/services/seed-service.js';
+    import { login, getSession, logout } from './js/services/auth-service.js';
+    import { getAuditHistory } from './js/services/audit-service.js';
+    const out = document.getElementById('out');
+    let failed = 0, total = 0;
+    function expect(name, pass) {
+      total++;
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'bad';
+      li.textContent = (pass ? 'OK: ' : 'PROBLEM: ') + name;
+      out.append(li);
+      if (!pass) failed++;
+    }
+    const savedSession = sessionStorage.getItem('smm.session.v1');
+    let knownEvents = new Set();
+    try {
+      await ensureSeeded();
+      knownEvents = new Set((await getAll('auditEvents')).map((e) => e.eventID));
+      await ensureSeeded();
+      const users = await getAll('users');
+      expect('Three demo users exist (and seeding twice does not duplicate them)', users.length === 3);
+      expect('Roles are Admin, Lead and PM', ['ADMIN', 'LEAD', 'PM'].every((r) => users.some((u) => u.systemRole === r)));
+      expect('No plain-text passwords are stored', users.every((u) => !('password' in u) && u.passwordHash && u.passwordHash.length === 64));
+      expect('Every demo user is marked as demo', users.every((u) => u.isDemo === true));
+      const sites = await getAll('sites');
+      expect('Koppal and Fatehgarh sites exist', ['KOPPAL', 'FATEHGARH'].every((c) => sites.some((s) => s.siteCode === c)));
+
+      const bad = await login('admin.demo', 'wrong');
+      expect('A wrong password is refused', bad.ok === false && getSession() === null);
+      const a = await login('admin.demo', 'Admin@123');
+      expect('Admin signs in by username', a.ok && a.user.systemRole === 'ADMIN');
+      logout();
+      const l = await login('LEAD@demo.serentica.example', 'Lead@123');
+      expect('Lead signs in by email', l.ok && l.user.systemRole === 'LEAD');
+      expect('Lead session carries site and department scope', l.user.siteScope.includes('KOPPAL') && l.user.departmentScope.includes('CIVIL'));
+      logout();
+      const p = await login('pm.demo', 'Manager@123');
+      expect('Project Manager signs in', p.ok && p.user.systemRole === 'PM');
+
+      const history = await getAuditHistory(p.user);
+      expect('Sign-ins and the failed attempt are in the audit trail',
+        history.some((e) => e.action === 'LOGIN' && e.actorRole === 'PM') && history.some((e) => e.action === 'LOGIN_FAILED'));
+      expect('Audit history is newest first', history.every((e, i) => i === 0 || history[i - 1].timestamp >= e.timestamp));
+      expect('No password appears in the audit trail', !JSON.stringify(history).includes('wrong') && !JSON.stringify(history).includes('Manager@123'));
+      let refused = false;
+      try { await getAuditHistory(null); } catch { refused = true; }
+      expect('Audit history is refused when not signed in', refused);
+    } catch (e) {
+      expect('Unexpected error: ' + e.message, false);
+    } finally {
+      // Remove only the audit events created by this test, and restore the visitor's session.
+      const extra = (await getAll('auditEvents')).filter((e) => !knownEvents.has(e.eventID));
+      await write('auditEvents', async (tx) => { for (const e of extra) await tx.delete('auditEvents', e.eventID); });
+      if (savedSession) sessionStorage.setItem('smm.session.v1', savedSession); else logout();
+    }
+    document.getElementById('verdict').textContent =
+      failed === 0 ? 'All good. ' + total + ' of ' + total + ' checks passed.' : failed + ' problem(s). Send me a screenshot.';
+  </script>
+</body>
+</html>
