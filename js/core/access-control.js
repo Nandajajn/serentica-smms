@@ -16,20 +16,20 @@ export const ACTIONS = Object.freeze({
   // employee changes
   EMPLOYEE_ADD: 'employee.add',
   EMPLOYEE_EDIT_OPERATIONAL: 'employee.editOperational', // phone, email, shift, address
-  EMPLOYEE_EDIT_RESTRICTED: 'employee.editRestricted',   // department, role, manager, type, status
-  CHANGE_REQUEST_CREATE: 'changeRequest.create',
-  CHANGE_REQUEST_DECIDE: 'changeRequest.decide',
+  EMPLOYEE_EDIT_RESTRICTED: 'employee.editRestricted',   // all other editable fields
   // deployment
   DEPLOYMENT_CREATE: 'deployment.create',
   DEPLOYMENT_CANCEL: 'deployment.cancel',
   DEPLOYMENT_REVIEW: 'deployment.review',
   DEPLOYMENT_DECIDE: 'deployment.decide',    // approve or reject
+  DEPLOYMENT_RETURN: 'deployment.return',    // send back to the Lead for changes
   DEPLOYMENT_CONFIRM: 'deployment.confirm',
   // recall
   RECALL_CREATE: 'recall.create',
   RECALL_CANCEL: 'recall.cancel',
   RECALL_REVIEW: 'recall.review',
   RECALL_DECIDE: 'recall.decide',
+  RECALL_RETURN: 'recall.return',
   RECALL_CONFIRM: 'recall.confirm',
   // Excel import
   IMPORT_UPLOAD: 'import.upload',
@@ -43,22 +43,24 @@ const READ_ONLY_ACTIONS = [A.VIEW_PAGES, A.VIEW_EMPLOYEES, A.VIEW_SENSITIVE, A.V
 
 const RULES = {
   [ROLES.ADMIN]: READ_ONLY_ACTIONS,
+  // Lead: edits employee records (within scope) and raises requests. No approvals.
   [ROLES.LEAD]: [
-    A.VIEW_PAGES, A.VIEW_EMPLOYEES, A.VIEW_AUDIT, A.EXPORT_DATA,
-    A.EMPLOYEE_EDIT_OPERATIONAL, A.CHANGE_REQUEST_CREATE,
+    A.VIEW_PAGES, A.VIEW_EMPLOYEES, A.VIEW_SENSITIVE, A.VIEW_AUDIT, A.EXPORT_DATA,
+    A.EMPLOYEE_ADD, A.EMPLOYEE_EDIT_OPERATIONAL, A.EMPLOYEE_EDIT_RESTRICTED,
     A.DEPLOYMENT_CREATE, A.DEPLOYMENT_CANCEL,
     A.RECALL_CREATE, A.RECALL_CANCEL,
   ],
+  // Project Manager: same edit rights as a Lead, plus the ONLY approval authority.
   [ROLES.PM]: [
     A.VIEW_PAGES, A.VIEW_EMPLOYEES, A.VIEW_SENSITIVE, A.VIEW_AUDIT, A.EXPORT_DATA,
-    A.EMPLOYEE_ADD, A.EMPLOYEE_EDIT_OPERATIONAL, A.EMPLOYEE_EDIT_RESTRICTED, A.CHANGE_REQUEST_DECIDE,
-    A.DEPLOYMENT_REVIEW, A.DEPLOYMENT_DECIDE, A.DEPLOYMENT_CONFIRM, A.DEPLOYMENT_CANCEL,
-    A.RECALL_REVIEW, A.RECALL_DECIDE, A.RECALL_CONFIRM, A.RECALL_CANCEL,
+    A.EMPLOYEE_ADD, A.EMPLOYEE_EDIT_OPERATIONAL, A.EMPLOYEE_EDIT_RESTRICTED,
+    A.DEPLOYMENT_REVIEW, A.DEPLOYMENT_DECIDE, A.DEPLOYMENT_RETURN, A.DEPLOYMENT_CONFIRM, A.DEPLOYMENT_CANCEL,
+    A.RECALL_REVIEW, A.RECALL_DECIDE, A.RECALL_RETURN, A.RECALL_CONFIRM, A.RECALL_CANCEL,
     A.IMPORT_UPLOAD, A.IMPORT_CONFIRM, A.FILE_REMOVE,
   ],
 };
 
-const DECISION_ACTIONS = [A.DEPLOYMENT_DECIDE, A.DEPLOYMENT_CONFIRM, A.RECALL_DECIDE, A.RECALL_CONFIRM, A.CHANGE_REQUEST_DECIDE];
+const DECISION_ACTIONS = [A.DEPLOYMENT_DECIDE, A.DEPLOYMENT_RETURN, A.DEPLOYMENT_CONFIRM, A.RECALL_DECIDE, A.RECALL_RETURN, A.RECALL_CONFIRM];
 const CANCEL_ACTIONS = [A.DEPLOYMENT_CANCEL, A.RECALL_CANCEL];
 
 export class PermissionError extends Error {
@@ -80,11 +82,12 @@ export function check(user, action, context = {}) {
   if (!RULES[user.systemRole].includes(action)) return deny('Your role is not allowed to do this.');
 
   // Admin sees everything; Lead and PM are limited to their assigned sites/departments.
+  // An empty scope means NO access (never "everything").
   if (user.systemRole !== ROLES.ADMIN) {
-        if (context.site && !(user.siteScope || []).includes(context.site)) {
+    if (context.site && !(user.siteScope || []).includes(context.site)) {
       return deny('This record is outside your site.');
     }
-       if (user.systemRole === ROLES.LEAD && context.department
+    if (user.systemRole === ROLES.LEAD && context.department
         && !(user.departmentScope || []).includes(context.department)) {
       return deny('This record is outside your department.');
     }
