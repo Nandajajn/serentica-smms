@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Employee service test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 5px 0; } .ok { color: #2E8B57; } .bad { color: #C0392B; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Employee rules test</h1>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    import { getAll, write, subscribe } from './js/core/store.js';
+    import { ensureSeeded } from './js/services/seed-service.js';
+    import { addEmployee, updateEmployee, updateReportingRelationship, getEmployees, getEmployeeById, deriveLeadership } from './js/services/employee-service.js';
+    import { PermissionError } from './js/core/access-control.js';
+    import { ValidationError } from './js/core/validators.js';
+
+    const out = document.getElementById('out');
+    let failed = 0, total = 0;
+    function expect(name, pass) {
+      total++;
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'bad';
+      li.textContent = (pass ? 'OK: ' : 'PROBLEM: ') + name;
+      out.append(li);
+      if (!pass) failed++;
+    }
+    async function fails(promise, ErrorType, field) {
+      try { await promise; return false; }
+      catch (e) { return e instanceof ErrorType && (!field || (e.errors && field in e.errors)); }
+    }
+
+    const pm = { userID: 'T-PM', systemRole: 'PM', siteScope: ['KOPPAL', 'FATEHGARH'], departmentScope: [] };
+    const pmFate = { userID: 'T-PM2', systemRole: 'PM', siteScope: ['FATEHGARH'], departmentScope: [] };
+    const lead = { userID: 'T-LEAD', systemRole: 'LEAD', siteScope: ['KOPPAL'], departmentScope: ['CIVIL'] };
+    const leadFate = { userID: 'T-LEAD2', systemRole: 'LEAD', siteScope: ['FATEHGARH'], departmentScope: ['CIVIL'] };
+    const admin = { userID: 'T-ADMIN', systemRole: 'ADMIN', siteScope: [], departmentScope: [] };
+    const nobody = { userID: 'T-NONE', systemRole: 'LEAD', siteScope: [], departmentScope: [] };
+    const base = { employeeName: 'Test Person', department: 'CIVIL', role: 'EMPLOYEE', employmentType: 'On-roll', baseSite: 'KOPPAL' };
+    const ids = ['TEST-A1', 'TEST-A2', 'TEST-A3', 'TEST-A4', 'TEST-B1'];
+    let knownEvents = new Set();
+
+    try {
+      await ensureSeeded();
+      knownEvents = new Set((await getAll('auditEvents')).map((e) => e.eventID));
+
+      let heard = 0;
+      const stop = subscribe('employees', () => { heard++; });
+      const a1 = await addEmployee(pm, { ...base, employeeID: ' test-a1 ', email: 'TEST.A1@Example.com', phone: '98765 43210', dateOfBirth: '1990-01-01' });
+      stop();
+      expect('PM adds an employee; ID and email are tidied', a1.employeeID === 'TEST-A1' && a1.email === 'test.a1@example.com');
+      expect('New employee gets safe defaults', a1.status === 'Active' && a1.deploymentStatus === 'Available' && a1.currentSite === 'KOPPAL' && a1.activeAssignmentID === null && a1.isDemo === false);
+      expect('Other pages are told about the new employee', heard === 1);
+
+      expect('Admin cannot add an employee', await fails(addEmployee(admin, { ...base, employeeID: 'TEST-X' }), PermissionError));
+      expect('Lead cannot add an employee', await fails(addEmployee(lead, { ...base, employeeID: 'TEST-X' }), PermissionError));
+      expect('PM cannot add to a site outside their scope', await fails(addEmployee(pmFate, { ...base, employeeID: 'TEST-X' }), PermissionError));
+      expect('Duplicate employee ID is refused', await fails(addEmployee(pm, { ...base, employeeID: 'test-a1' }), ValidationError, 'employeeID'));
+      expect('Duplicate email is refused', await fails(addEmployee(pm, { ...base, employeeID: 'TEST-A2', email: 'test.a1@example.com' }), ValidationError, 'email'));
+      expect('Bad email and phone are reported', await fails(addEmployee(pm, { ...base, employeeID: 'TEST-A2', email: 'nope', phone: 'abc' }), ValidationError, 'phone'));
+      expect('An unknown site is refused', await fails(addEmployee(pm, { ...base, employeeID: 'TEST-A2', baseSite: 'MARS' }), Error));
+      expect('Missing name is refused', await fails(addEmployee(pm, { ...base, employeeID: 'TEST-A2', employeeName: '' }), ValidationError, 'employeeName'));
+      expect('A refused add saves nothing', !(await getAll('employees')).some((e) => e.employeeID === 'TEST-A2' || e.employeeID === 'TEST-X'));
+
+      const edited = await updateEmployee(lead, 'TEST-A1', { phone: '9000000001', shift: 'Day' });
+      expect('Lead edits phone and shift', edited.phone === '9000000001' && edited.shift === 'Day');
+      const audit = (await getAll('auditEvents')).find((e) => e.action === 'EMPLOYEE_UPDATE' && e.recordID === 'TEST-A1');
+      expect('The edit is in the audit trail with before and after', audit && audit.after.phone === '9000000001' && audit.actorRole === 'LEAD' && 'phone' in audit.before);
+      expect('Lead cannot change department directly', await fails(updateEmployee(lead, 'TEST-A1', { department: 'MECHANICAL' }), PermissionError));
+      expect('Lead cannot change status or manager directly', await fails(updateEmployee(lead, 'TEST-A1', { status: 'Inactive' }), PermissionError));
+      expect('Admin cannot edit anything', await fails(updateEmployee(admin, 'TEST-A1', { phone: '9111111111' }), PermissionError));
+      expect('Lead of another department is refused', await fails(
+        (async () => { await addEmployee(pm, { ...base, employeeID: 'TEST-A3', department: 'MECHANICAL' }); return updateEmployee(lead, 'TEST-A3', { phone: '9222222222' }); })(), PermissionError));
+      expect('Lead of another site cannot see or edit the employee', (await getEmployeeById(leadFate, 'TEST-A1')) === null && await fails(updateEmployee(leadFate, 'TEST-A1', { phone: '9333333333' }), Error));
+      expect('A user with no scope sees nothing', (await getEmployees(nobody)).length === 0);
+
+      const moved = await updateEmployee(pm, 'TEST-A1', { department: 'ELECTRICAL' }, 'Transferred');
+      expect('PM changes department', moved.department === 'ELECTRICAL');
+      expect('The reason is stored in the audit trail', (await getAll('auditEvents')).some((e) => e.reason === 'Transferred'));
+      expect('Fields set by workflows cannot be edited', await fails(updateEmployee(pm, 'TEST-A1', { deploymentStatus: 'Deployed' }), ValidationError, '_fields'));
+      const before = (await getAll('auditEvents')).length;
+      await updateEmployee(pm, 'TEST-A1', { department: 'ELECTRICAL' });
+      expect('Saving without changes writes no audit event', (await getAll('auditEvents')).length === before);
+
+      await addEmployee(pm, { ...base, employeeID: 'TEST-A4', role: 'DEPT_LEAD' });
+      expect('Valid reporting manager is accepted', (await updateReportingRelationship(pm, 'TEST-A1', 'test-a4')).reportingManagerID === 'TEST-A4');
+      expect('Reporting to yourself is refused', await fails(updateReportingRelationship(pm, 'TEST-A1', 'TEST-A1'), ValidationError, 'reportingManagerID'));
+      expect('Reporting loop is refused', await fails(updateReportingRelationship(pm, 'TEST-A4', 'TEST-A1'), ValidationError, 'reportingManagerID'));
+      expect('Unknown manager is refused', await fails(updateReportingRelationship(pm, 'TEST-A1', 'NOBODY'), ValidationError, 'reportingManagerID'));
+      const all = await getAll('employees');
+      expect('Team lead is worked out from the chain', deriveLeadership(all, 'TEST-A1').teamLead?.employeeID === 'TEST-A4');
+
+      expect('PM sees sensitive fields', (await getEmployeeById(pm, 'TEST-A1')).dateOfBirth === '1990-01-01');
+      expect('Admin sees sensitive fields', (await getEmployeeById(admin, 'TEST-A1')).dateOfBirth === '1990-01-01');
+      expect('Lead does NOT see sensitive fields', !('dateOfBirth' in (await getEmployeeById(lead, 'TEST-A1'))));
+
+      await write('employees', async (tx) => tx.put('employees', { ...(await tx.get('employees', 'TEST-A1')), activeAssignmentID: 'ASG-TEST' }));
+      expect('A deployed employee cannot be made Inactive', await fails(updateEmployee(pm, 'TEST-A1', { status: 'Inactive' }), ValidationError, 'status'));
+    } catch (e) {
+      expect('Unexpected error: ' + e.message, false);
+    } finally {
+      const extra = (await getAll('auditEvents')).filter((e) => !knownEvents.has(e.eventID));
+      await write(['employees', 'auditEvents'], async (tx) => {
+        for (const id of ids) await tx.delete('employees', id);
+        for (const e of extra) await tx.delete('auditEvents', e.eventID);
+      });
+      expect('Test records cleaned up', !(await getAll('employees')).some((e) => ids.includes(e.employeeID)));
+    }
+    document.getElementById('verdict').textContent =
+      failed === 0 ? 'All good. ' + total + ' of ' + total + ' checks passed.' : failed + ' problem(s). Send me a screenshot.';
+  </script>
+</body>
+</html>
