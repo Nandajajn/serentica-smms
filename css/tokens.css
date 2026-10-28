@@ -1,0 +1,27 @@
+/* Design tokens: the only place colours, spacing and fonts are defined. */
+:root {
+  --primary: #33A7B5;
+  --primary-dark: #248895;
+  --primary-tint: #E6F4F6;
+  --bg: #F4F6F7;
+  --surface: #FFFFFF;
+  --border: #DDE3E6;
+  --text: #2B3036;
+  --muted: #6B7580;
+
+  --success: #2E8B57;  --success-bg: #E5F4EC;
+  --warning: #B7791F;  --warning-bg: #FBF1DC;
+  --danger:  #C0392B;  --danger-bg:  #FBE9E7;
+  --info:    #248895;  --info-bg:    #E6F4F6;
+
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --fs-sm: 0.8125rem; --fs-base: 0.9375rem; --fs-lg: 1.125rem; --fs-xl: 1.5rem; --fs-2xl: 1.875rem;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px;
+
+  --radius: 6px;
+  --shadow: 0 1px 2px rgba(36, 60, 66, 0.08);
+  --header-h: 56px;
+  --sidebar-w: 248px;
+}
