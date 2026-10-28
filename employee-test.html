@@ -41,7 +41,7 @@
     const admin = { userID: 'T-ADMIN', systemRole: 'ADMIN', siteScope: [], departmentScope: [] };
     const nobody = { userID: 'T-NONE', systemRole: 'LEAD', siteScope: [], departmentScope: [] };
     const base = { employeeName: 'Test Person', department: 'CIVIL', role: 'EMPLOYEE', employmentType: 'On-roll', baseSite: 'KOPPAL' };
-    const ids = ['TEST-A1', 'TEST-A2', 'TEST-A3', 'TEST-A4', 'TEST-B1'];
+    const ids = ['TEST-A1', 'TEST-A2', 'TEST-A3', 'TEST-A4', 'TEST-B1', 'TEST-X'];
     let knownEvents = new Set();
 
     try {
@@ -57,7 +57,9 @@
       expect('Other pages are told about the new employee', heard === 1);
 
       expect('Admin cannot add an employee', await fails(addEmployee(admin, { ...base, employeeID: 'TEST-X' }), PermissionError));
-      expect('Lead cannot add an employee', await fails(addEmployee(lead, { ...base, employeeID: 'TEST-X' }), PermissionError));
+      expect('Lead cannot add to another site or department', await fails(addEmployee(lead, { ...base, employeeID: 'TEST-X', baseSite: 'FATEHGARH' }), PermissionError) && await fails(addEmployee(lead, { ...base, employeeID: 'TEST-X', department: 'MECHANICAL' }), PermissionError));
+      const b1 = await addEmployee(lead, { ...base, employeeID: 'TEST-B1' });
+      expect('Lead can add an employee in their own site and department', b1.employeeID === 'TEST-B1');
       expect('PM cannot add to a site outside their scope', await fails(addEmployee(pmFate, { ...base, employeeID: 'TEST-X' }), PermissionError));
       expect('Duplicate employee ID is refused', await fails(addEmployee(pm, { ...base, employeeID: 'test-a1' }), ValidationError, 'employeeID'));
       expect('Duplicate email is refused', await fails(addEmployee(pm, { ...base, employeeID: 'TEST-A2', email: 'test.a1@example.com' }), ValidationError, 'email'));
@@ -70,8 +72,9 @@
       expect('Lead edits phone and shift', edited.phone === '9000000001' && edited.shift === 'Day');
       const audit = (await getAll('auditEvents')).find((e) => e.action === 'EMPLOYEE_UPDATE' && e.recordID === 'TEST-A1');
       expect('The edit is in the audit trail with before and after', audit && audit.after.phone === '9000000001' && audit.actorRole === 'LEAD' && 'phone' in audit.before);
-      expect('Lead cannot change department directly', await fails(updateEmployee(lead, 'TEST-A1', { department: 'MECHANICAL' }), PermissionError));
-      expect('Lead cannot change status or manager directly', await fails(updateEmployee(lead, 'TEST-A1', { status: 'Inactive' }), PermissionError));
+      expect('Lead can change designation and status', (await updateEmployee(lead, 'TEST-A1', { designation: 'Site Engineer', status: 'On Leave' })).status === 'On Leave');
+      await updateEmployee(lead, 'TEST-A1', { status: 'Active' });
+      expect('Lead cannot move an employee outside their own department', await fails(updateEmployee(lead, 'TEST-A1', { department: 'MECHANICAL' }), PermissionError));
       expect('Admin cannot edit anything', await fails(updateEmployee(admin, 'TEST-A1', { phone: '9111111111' }), PermissionError));
       expect('Lead of another department is refused', await fails(
         (async () => { await addEmployee(pm, { ...base, employeeID: 'TEST-A3', department: 'MECHANICAL' }); return updateEmployee(lead, 'TEST-A3', { phone: '9222222222' }); })(), PermissionError));
@@ -96,7 +99,7 @@
 
       expect('PM sees sensitive fields', (await getEmployeeById(pm, 'TEST-A1')).dateOfBirth === '1990-01-01');
       expect('Admin sees sensitive fields', (await getEmployeeById(admin, 'TEST-A1')).dateOfBirth === '1990-01-01');
-      expect('Lead does NOT see sensitive fields', !('dateOfBirth' in (await getEmployeeById(lead, 'TEST-A1'))));
+      expect('Lead sees sensitive fields inside their scope', (await getEmployeeById(lead, 'TEST-A1')).dateOfBirth === '1990-01-01');
 
       await write('employees', async (tx) => tx.put('employees', { ...(await tx.get('employees', 'TEST-A1')), activeAssignmentID: 'ASG-TEST' }));
       expect('A deployed employee cannot be made Inactive', await fails(updateEmployee(pm, 'TEST-A1', { status: 'Inactive' }), ValidationError, 'status'));
