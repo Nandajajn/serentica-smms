@@ -1,67 +1,69 @@
-import { ROLE_LABELS } from '../core/constants.js';
-import { login, getSession, listDemoAccounts } from '../services/auth-service.js';
+// Prototype authentication against the demo users in the shared database.
+// Passwords are stored as salted hashes, but the session lives in sessionStorage and
+// the checking happens in the browser, so this is NOT real security. Production needs
+// server-side authentication.
+import { ROLES, STORAGE_KEYS } from '../core/constants.js';
+import { getAll, write } from '../core/store.js';
+import { hashPassword } from '../core/utils.js';
+import { DEMO_USER_SEEDS } from '../seed/seed-data.js';
+import { addAudit } from './audit-service.js';
+import { ensureSeeded } from './seed-service.js';
 
-if (getSession()) location.replace('dashboard.html');
-
-const form = document.getElementById('login-form');
-const idInput = document.getElementById('identifier');
-const pwInput = document.getElementById('password');
-const errBox = document.getElementById('login-error');
-
-function setFieldError(input, message) {
-  document.getElementById(`${input.id}-error`).textContent = message || '';
-  input.setAttribute('aria-invalid', message ? 'true' : 'false');
+/** Demo accounts shown on the login page (demo only). */
+export function listDemoAccounts() {
+  return DEMO_USER_SEEDS.map(({ username, password, systemRole }) => ({ username, password, systemRole }));
 }
 
-function nextPage() {
-  const next = new URLSearchParams(location.search).get('next');
-  return /^[a-z-]+\.html$/.test(next || '') && next !== 'login.html' ? next : 'dashboard.html';
-}
+export async function login(identifier, password) {
+  const id = String(identifier || '').trim().toLowerCase();
+  const pw = String(password || '');
+  if (!id || !pw) return { ok: false, error: 'Enter your username or email and your password.' };
 
-form.addEventListener('submit', (e) => {
-  e.preventDefault();
-  errBox.hidden = true;
-  setFieldError(idInput, idInput.value.trim() ? '' : 'Enter your username or email.');
-  setFieldError(pwInput, pwInput.value ? '' : 'Enter your password.');
-  if (!idInput.value.trim() || !pwInput.value) return;
+  await ensureSeeded();
+  const users = await getAll('users');
+  const user = users.find((u) => u.username.toLowerCase() === id || u.email.toLowerCase() === id);
+  const valid = user && (await hashPassword(pw, user.salt)) === user.passwordHash;
 
-  const result = login(idInput.value, pwInput.value);
-  if (!result.ok) {
-    errBox.textContent = result.error;
-    errBox.hidden = false;
-    pwInput.value = '';
-    pwInput.focus();
-    return;
+  if (!valid) {
+    await write('auditEvents', (tx) => addAudit(tx, {
+      actor: null, action: 'LOGIN_FAILED', recordType: 'user', recordID: id, reason: 'Incorrect username or password.',
+    }));
+    return { ok: false, error: 'The username or password is incorrect.' };
   }
-  location.replace(nextPage());
-});
 
-document.getElementById('toggle-password').addEventListener('click', (e) => {
-  const show = pwInput.type === 'password';
-  pwInput.type = show ? 'text' : 'password';
-  e.currentTarget.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-  e.currentTarget.firstElementChild.className = `fa-solid ${show ? 'fa-eye-slash' : 'fa-eye'}`;
-});
+  const session = {
+    userID: user.userID, username: user.username, displayName: user.displayName,
+    systemRole: user.systemRole, siteScope: user.siteScope, departmentScope: user.departmentScope,
+    loggedInAt: new Date().toISOString(),
+  };
+  await write('auditEvents', (tx) => addAudit(tx, { actor: session, action: 'LOGIN', recordType: 'user', recordID: user.userID }));
+  sessionStorage.setItem(STORAGE_KEYS.session, JSON.stringify(session));
+  return { ok: true, user: session };
+}
 
-// Demo account helper: fills the form, the user still presses Sign in.
-const list = document.getElementById('demo-accounts');
-for (const acc of listDemoAccounts()) {
-  const row = document.createElement('div');
-  row.className = 'demo-row';
-  const label = document.createElement('div');
-  label.innerHTML = '<strong></strong><br><code></code>';
-  label.querySelector('strong').textContent = ROLE_LABELS[acc.systemRole];
-  label.querySelector('code').textContent = `${acc.username} / ${acc.password}`;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn btn-sm';
-  btn.textContent = 'Use account';
-  btn.addEventListener('click', () => {
-    idInput.value = acc.username;
-    pwInput.value = acc.password;
-    setFieldError(idInput, ''); setFieldError(pwInput, '');
-    pwInput.focus();
-  });
-  row.append(label, btn);
-  list.append(row);
+export function getSession() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEYS.session);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return s && Object.values(ROLES).includes(s.systemRole) ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+export function logout() {
+  sessionStorage.removeItem(STORAGE_KEYS.session);
+}
+
+/** Returns the session, or redirects to the login page and returns null. */
+export function requireAuth() {
+  const session = getSession();
+  if (!session) {
+    const page = location.pathname.split('/').pop();
+    const next = /^[a-z-]+\.html$/.test(page) && page !== 'login.html' ? `?next=${page}` : '';
+    location.replace(`login.html${next}`);
+    return null;
+  }
+  return session;
 }
