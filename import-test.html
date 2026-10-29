@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Excel import test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 780px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 5px 0; } .ok { color: #2E8B57; } .bad { color: #C0392B; font-weight: bold; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>Excel import test</h1>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    import { getAll, getOne, write, subscribe } from './js/core/store.js';
+    import { ensureSeeded } from './js/services/seed-service.js';
+    import { readWorkbook, autoMapHeaders, planImport, commitImport, getImportHistory, getUploadedFiles, removeUploadedFile } from './js/services/import-service.js';
+    import { PermissionError } from './js/core/access-control.js';
+
+    const out = document.getElementById('out');
+    let failed = 0, total = 0;
+    function expect(name, pass) {
+      total++;
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'bad';
+      li.textContent = (pass ? 'OK: ' : 'PROBLEM: ') + name;
+      out.append(li);
+      if (!pass) failed++;
+    }
+    async function rejects(promise, ErrorType) {
+      try { await promise; return false; } catch (e) { return !ErrorType || e instanceof ErrorType; }
+    }
+
+    if (typeof XLSX === 'undefined') {
+      expect('The Excel library (SheetJS) loaded. Check your internet connection.', false);
+      document.getElementById('verdict').textContent = '1 problem(s). Send me a screenshot.';
+      throw new Error('SheetJS missing');
+    }
+
+    const pm = { userID: 'T-PM', systemRole: 'PM', siteScope: ['KOPPAL', 'FATEHGARH'], departmentScope: [] };
+    const pmKoppal = { userID: 'T-PM2', systemRole: 'PM', siteScope: ['KOPPAL'], departmentScope: [] };
+    const lead = { userID: 'T-LEAD', systemRole: 'LEAD', siteScope: ['KOPPAL'], departmentScope: ['CIVIL'] };
+    const admin = { userID: 'T-ADMIN', systemRole: 'ADMIN', siteScope: [], departmentScope: [] };
+
+    function makeWorkbook(sheets) {
+      const wb = XLSX.utils.book_new();
+      for (const [name, aoa] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa, { cellDates: true }), name);
+      return XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    }
+    const windHead = ['Sr No', 'Emp Code', 'Emp Name', 'Designation', 'Department', 'Role', 'Reporting Manager', 'Contact', 'Email ID', 'Onroll / Off-role', 'Site', 'Status', 'Joining Date', 'Residential District'];
+    function sheetsFor(wb, overrides = {}) {
+      const mapped = readWorkbook(XLSX, wb);
+      return mapped.map((s) => ({ fileName: 'test.xlsx', sheetName: s.name, headers: s.headers, rows: s.rows, mapping: autoMapHeaders(s.headers), useSheetAsProject: false, ...overrides }));
+    }
+    const defaults = { baseSite: 'KOPPAL', department: 'ELECTRICAL', role: 'EMPLOYEE', employmentType: 'On-roll' };
+    const workbookData = () => ({
+      Wind: [
+        windHead,
+        [1, 'impt-001', 'Imp Manager', 'Project Manager', 'Project Management', 'Project Manager', '', '9000000001', 'imp.manager@example.com', 'On-roll', 'Koppal', 'Active', new Date(2021, 2, 15), 'Koppal'],
+        [2, 'IMPT-002', 'Imp Lead', 'Civil Lead', 'Civil', 'Lead', 'Imp Manager', '9000000002', 'imp.lead@example.com', 'On-roll', 'Koppal', 'Active', '31/12/2020', 'Koppal'],
+        [3, 'IMPT-003', 'Imp Staff', 'Civil Engineer', 'Civil', 'Employee', 'IMPT-002', '9000000003', 'imp.staff@example.com', 'Off-role', 'Koppal', 'Active', '', ''],
+        [4, 'IMPT-004', 'Bad Email', 'Engineer', 'Civil', 'Employee', '', '', 'not-an-email', 'On-roll', 'Koppal', 'Active', '', ''],
+        [5, 'IMPT-003', 'Duplicate Id', 'Engineer', 'Civil', 'Employee', '', '', '', 'On-roll', 'Koppal', 'Active', '', ''],
+        [6, 'IMPT-005', 'Bad Dept', 'Engineer', 'Basket Weaving', 'Employee', '', '', '', 'On-roll', 'Koppal', 'Active', '', ''],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+        [7, 'IMPT-006', 'Far Away', 'Engineer', 'Civil', 'Employee', '', '', '', 'On-roll', 'Fatehgarh', 'Active', '', ''],
+      ],
+      Solar: [
+        ['Employee Code', 'Employee Name', 'Contact Number', 'Email', 'Deployment Status'],
+        ['IMPT-010', 'Solar One', '9000000010', 'solar.one@example.com', 'Deployed'],
+        ['IMPT-011', 'Solar Two', '9000000011', 'solar.two@example.com', ''],
+      ],
+    });
+
+    let knownAudit = new Set(), knownBatch = new Set(), knownFile = new Set();
+    try {
+      await ensureSeeded();
+      knownAudit = new Set((await getAll('auditEvents')).map((e) => e.eventID));
+      knownBatch = new Set((await getAll('importBatches')).map((e) => e.batchID));
+      knownFile = new Set((await getAll('uploadedFiles')).map((e) => e.fileID));
+      const existing = () => getAll('employees');
+      const sites = await getAll('sites');
+
+      /* reading and mapping */
+      const wb = makeWorkbook(workbookData());
+      const read = readWorkbook(XLSX, wb);
+      expect('Both worksheets are found', read.length === 2 && read[0].name === 'Wind' && read[1].name === 'Solar');
+      expect('Empty rows are skipped; real row numbers are kept', read[0].rows.length === 7 && read[0].rows[0].rowNumber === 2);
+      const map = autoMapHeaders(read[0].headers);
+      expect('Different headings are mapped to the right fields', map.employeeID === 1 && map.employmentType === 9 && map.baseSite === 10 && map.phone === 7 && map.address === 13 && map.reportingManager === 6 && map.designation === 3);
+      expect('Unknown columns (Sr No) are left unmapped', !Object.values(map).includes(0));
+
+      /* checking rows */
+      const windOnly = sheetsFor(wb).filter((s) => s.sheetName === 'Wind');
+      const plan = planImport({ sheets: windOnly, defaults: {}, existing: await existing(), sites, user: pm });
+      expect('Wind sheet: 4 new rows and 3 invalid rows', plan.counts.new === 4 && plan.counts.invalid === 3 && plan.counts.total === 7);
+      const byId = (id, kind) => plan.items.find((i) => i.employeeID === id && (!kind || i.kind === kind));
+      expect('Employee IDs are tidied (impt-001 becomes IMPT-001)', byId('IMPT-001').kind === 'new');
+      expect('A bad email is reported against its row', byId('IMPT-004').errors.some((m) => /email/i.test(m)));
+      expect('A repeated Employee ID is reported as a duplicate', plan.items.filter((i) => i.employeeID === 'IMPT-003' && i.kind === 'invalid').length === 1);
+      expect('An unknown department is reported', byId('IMPT-005').errors.some((m) => /Basket Weaving/.test(m)));
+      expect('Manager found by name and by Employee ID', byId('IMPT-002').record.reportingManagerID === 'IMPT-001' && byId('IMPT-003', 'new').record.reportingManagerID === 'IMPT-002');
+      expect('Both date styles are understood', byId('IMPT-001').record.joiningDate === '2021-03-15' && byId('IMPT-002').record.joiningDate === '2020-12-31');
+      expect('"Lead" is understood as Department Lead', byId('IMPT-002').record.role === 'DEPT_LEAD');
+      expect('Row numbers are kept for error reports', byId('IMPT-004').rowNumber === 5);
+      const scoped = planImport({ sheets: windOnly, defaults: {}, existing: await existing(), sites, user: pmKoppal });
+      expect('A site outside the user\'s scope is rejected', scoped.items.find((i) => i.employeeID === 'IMPT-006').errors.some((m) => /outside your scope/.test(m)));
+
+      const solar = sheetsFor(wb).filter((s) => s.sheetName === 'Solar');
+      const noDefaults = planImport({ sheets: solar, defaults: {}, existing: await existing(), sites, user: pm });
+      expect('Missing columns without defaults give clear errors', noDefaults.counts.invalid === 2 && noDefaults.items[0].errors.some((m) => /Department is missing/.test(m)));
+      const withDefaults = planImport({ sheets: solar, defaults, existing: await existing(), sites, user: pm });
+      expect('Missing columns are filled from the chosen defaults', withDefaults.counts.new === 2 && withDefaults.items[0].record.department === 'ELECTRICAL');
+      expect('The defaults that were applied are listed', withDefaults.defaultsUsed.some((d) => d.field === 'department' && d.rows === 2));
+      expect('The Deployment Status column is ignored, with a note', withDefaults.items[0].record.deploymentStatus === 'Available' && withDefaults.notes.some((n) => /Deployment status/.test(n)));
+      const asProject = planImport({ sheets: sheetsFor(wb, { useSheetAsProject: true }).filter((s) => s.sheetName === 'Solar'), defaults, existing: await existing(), sites, user: pm });
+      expect('The worksheet name becomes the project only when asked', asProject.items[0].record.currentProject === 'Solar' && withDefaults.items[0].record.currentProject === '');
+
+      /* nothing saved so far */
+      expect('Checking rows saves nothing', (await existing()).filter((e) => e.employeeID.startsWith('IMPT-')).length === 0);
+
+      /* permissions */
+      const files = [{ fileName: 'test.xlsx', sizeBytes: 1234, sheets: read.map((s) => ({ name: s.name, rowCount: s.rows.length })) }];
+      const allSheets = sheetsFor(wb);
+      expect('Admin cannot import', await rejects(commitImport(admin, { files, sheets: allSheets, defaults }), PermissionError));
+      expect('Lead cannot import', await rejects(commitImport(lead, { files, sheets: allSheets, defaults }), PermissionError));
+
+      /* importing */
+      let heard = 0;
+      const stop = subscribe('employees', () => { heard++; });
+      const result = await commitImport(pm, { files, sheets: allSheets, defaults });
+      stop();
+      const all = await existing();
+      const imported = all.filter((e) => e.employeeID.startsWith('IMPT-'));
+      expect('PM imports the valid rows (6 new employees)', result.counts.new === 6 && imported.length === 6);
+      expect('Invalid rows were not imported', !all.some((e) => ['IMPT-004', 'IMPT-005'].includes(e.employeeID)));
+      expect('Imported employees are real (not demo) and linked to their batch', imported.every((e) => e.isDemo === false && e.sourceBatchID && e.deploymentStatus === 'Available'));
+      expect('Other pages are told about the new employees', heard >= 1);
+      const batches = (await getImportHistory(pm)).filter((b) => !knownBatch.has(b.batchID));
+      expect('One history record per worksheet, with the counts', batches.length === 2 && batches.find((b) => b.sheetName === 'Wind').newRows === 4 && batches.find((b) => b.sheetName === 'Wind').invalidRows === 3);
+      expect('The history keeps the row errors for the report', batches.find((b) => b.sheetName === 'Wind').errors.some((e) => e.employeeID === 'IMPT-004'));
+      expect('The history records which column was used for each field', batches.find((b) => b.sheetName === 'Wind').mapping.employeeID === 'Emp Code');
+      const file = (await getUploadedFiles(pm)).find((f) => !knownFile.has(f.fileID));
+      expect('The uploaded file is recorded, and its bytes are not stored', file && file.status === 'Active' && file.bytesStored === false && file.sheets.length === 2);
+      expect('The audit trail records the import', (await getAll('auditEvents')).some((e) => e.action === 'IMPORT_COMPLETED') && (await getAll('auditEvents')).some((e) => e.action === 'EMPLOYEE_IMPORT_ADD' && e.actorRole === 'PM'));
+
+      /* importing again */
+      const again = planImport({ sheets: sheetsFor(wb), defaults, existing: all, sites, user: pm });
+      expect('Importing the same file again changes nothing', again.counts.new === 0 && again.counts.updated === 0 && again.counts.unchanged === 6);
+      expect('Importing with nothing to change is refused', await rejects(commitImport(pm, { files, sheets: sheetsFor(wb), defaults })));
+
+      const edited = workbookData();
+      edited.Wind[1][7] = '9111111111';                     // new phone for IMPT-001
+      edited.Wind[2][8] = '';                                // blank email for IMPT-002
+      const wb2 = makeWorkbook({ Wind: edited.Wind });
+      const updatePlan = planImport({ sheets: sheetsFor(wb2), defaults: {}, existing: all, sites, user: pm });
+      const upd = updatePlan.items.find((i) => i.employeeID === 'IMPT-001');
+      expect('A changed phone is shown as an update with before and after', upd.kind === 'updated' && upd.changes.phone.from === '9000000001' && upd.changes.phone.to === '9111111111');
+      expect('A blank cell does not erase existing data', updatePlan.items.find((i) => i.employeeID === 'IMPT-002').kind === 'unchanged');
+      await commitImport(pm, { files: [{ fileName: 'edit.xlsx', sizeBytes: 10, sheets: [{ name: 'Wind', rowCount: 7 }] }], sheets: sheetsFor(wb2).map((s) => ({ ...s, fileName: 'edit.xlsx' })), defaults: {} });
+      expect('The update is saved and the blank cell kept the old email', (await getOne('employees', 'IMPT-001')).phone === '9111111111' && (await getOne('employees', 'IMPT-002')).email === 'imp.lead@example.com');
+      expect('The update is in the audit trail', (await getAll('auditEvents')).some((e) => e.action === 'EMPLOYEE_IMPORT_UPDATE' && e.recordID === 'IMPT-001' && e.after.phone === '9111111111'));
+
+      /* a failure must not save anything */
+      const wb3 = makeWorkbook({ Extra: [['Emp Code', 'Emp Name', 'Department', 'Role', 'Onroll / Off-role', 'Site'], ['IMPT-020', 'Atomic Test', 'Civil', 'Employee', 'On-roll', 'Koppal']] });
+      const poisoned = [{ fileName: 'test.xlsx', sizeBytes: 1, sheets: [{ name: () => 'cannot be stored', rowCount: 1 }] }];
+      expect('A failed import reports the error', await rejects(commitImport(pm, { files: poisoned, sheets: sheetsFor(wb3), defaults: {} })));
+      expect('A failed import saves no employees', (await getOne('employees', 'IMPT-020')) === null);
+      expect('The failure is recorded in the history', (await getImportHistory(pm)).some((b) => b.status === 'Failed' && !knownBatch.has(b.batchID)));
+
+      /* removing the uploaded file */
+      expect('Admin cannot remove a file', await rejects(removeUploadedFile(admin, file.fileID), PermissionError));
+      const removed = await removeUploadedFile(pm, file.fileID);
+      expect('PM removes the uploaded file', removed.status === 'Removed' && removed.removedBy === 'T-PM');
+      expect('Removing the file keeps every imported employee', (await existing()).filter((e) => e.employeeID.startsWith('IMPT-')).length === 6);
+      expect('Removing the file twice is refused', await rejects(removeUploadedFile(pm, file.fileID)));
+      expect('The removal is in the audit trail', (await getAll('auditEvents')).some((e) => e.action === 'UPLOADED_FILE_REMOVED' && e.recordID === file.fileID));
+    } catch (e) {
+      expect('Unexpected error: ' + e.message, false);
+    } finally {
+      const events = (await getAll('auditEvents')).filter((e) => !knownAudit.has(e.eventID));
+      const batches = (await getAll('importBatches')).filter((b) => !knownBatch.has(b.batchID));
+      const files = (await getAll('uploadedFiles')).filter((f) => !knownFile.has(f.fileID));
+      const people = (await getAll('employees')).filter((e) => e.employeeID.startsWith('IMPT-'));
+      await write(['employees', 'importBatches', 'uploadedFiles', 'auditEvents'], async (tx) => {
+        for (const x of people) await tx.delete('employees', x.employeeID);
+        for (const x of batches) await tx.delete('importBatches', x.batchID);
+        for (const x of files) await tx.delete('uploadedFiles', x.fileID);
+        for (const x of events) await tx.delete('auditEvents', x.eventID);
+      });
+      expect('Test records cleaned up', (await getAll('employees')).every((e) => !e.employeeID.startsWith('IMPT-')));
+    }
+    document.getElementById('verdict').textContent =
+      failed === 0 ? 'All good. ' + total + ' of ' + total + ' checks passed.' : failed + ' problem(s). Send me a screenshot.';
+  </script>
+</body>
+</html>
