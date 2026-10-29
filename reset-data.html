@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reset prototype data</title>
+  <style>
+    body { font-family: sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; color: #2B3036; }
+    .box { border: 1px solid #DDE3E6; border-radius: 6px; padding: 20px; }
+    button { padding: 10px 18px; border-radius: 6px; border: 1px solid #C0392B; background: #C0392B; color: #fff; font-size: 1rem; cursor: pointer; }
+    button[disabled] { opacity: .6; cursor: not-allowed; }
+    #msg { margin-top: 16px; font-weight: 600; }
+    .ok { color: #2E8B57; } .bad { color: #C0392B; }
+  </style>
+</head>
+<body>
+  <h1>Reset prototype data</h1>
+  <div class="box">
+    <p>This deletes <strong>everything this website has saved in this browser</strong>: all employees, import history, uploaded-file records and the audit trail. Demo logins are created again the next time you sign in.</p>
+    <p>It affects only this browser. It cannot change anyone else's data.</p>
+    <button id="reset" type="button">Delete all saved data</button>
+    <div id="msg" role="status"></div>
+  </div>
+  <p><a href="login.html">Back to sign in</a></p>
+  <script>
+    // Classic script on purpose: this page must work even if the app itself is broken.
+    var msg = document.getElementById('msg');
+    var btn = document.getElementById('reset');
+    function show(text, ok) { msg.textContent = text; msg.className = ok ? 'ok' : 'bad'; }
+
+    btn.addEventListener('click', function () {
+      if (!window.confirm('Delete ALL data saved by this site in this browser? This cannot be undone.')) return;
+      btn.disabled = true;
+      try { sessionStorage.clear(); } catch (e) {}
+      var request = indexedDB.deleteDatabase('serentica_smm_v1');
+      request.onsuccess = function () { show('Done. All saved data was deleted. Go back to sign in.', true); };
+      request.onerror = function () { show('Could not delete the data: ' + (request.error && request.error.message), false); btn.disabled = false; };
+      request.onblocked = function () { show('Another tab of this site is still open. Close all other tabs of this site, then press the button again.', false); btn.disabled = false; };
+    });
+  </script>
+</body>
+</html>
