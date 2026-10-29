@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Demo employees test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    li { margin: 5px 0; } .ok { color: #2E8B57; } .bad { color: #C0392B; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Demo employees test</h1>
+  <ul id="out"></ul>
+  <p id="verdict"></p>
+  <script type="module">
+    import { getAll } from './js/core/store.js';
+    import { ensureSeeded } from './js/services/seed-service.js';
+    import { getEmployees, getReportingChain, deriveLeadership } from './js/services/employee-service.js';
+    import { validateEmployee } from './js/core/validators.js';
+
+    const out = document.getElementById('out');
+    let failed = 0, total = 0;
+    function expect(name, pass) {
+      total++;
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'bad';
+      li.textContent = (pass ? 'OK: ' : 'PROBLEM: ') + name;
+      out.append(li);
+      if (!pass) failed++;
+    }
+    try {
+      await ensureSeeded();
+      await ensureSeeded();
+      const all = (await getAll('employees')).filter((e) => e.isDemo);
+      const sites = await getAll('sites');
+      const codes = sites.map((s) => s.siteCode);
+      const byId = new Map(all.map((e) => [e.employeeID, e]));
+
+      expect('68 demo employees exist (seeding twice does not duplicate)', all.length === 68);
+      expect('34 at each site', ['KOPPAL', 'FATEHGARH'].every((c) => all.filter((e) => e.baseSite === c).length === 34));
+      expect('Every demo employee is marked as demo and has a DEMO- ID', all.every((e) => e.isDemo && e.employeeID.startsWith('DEMO-')));
+      expect('Every record passes the same validation as a real add', all.every((e) => Object.keys(validateEmployee(e, { employees: all, siteCodes: codes, isNew: false })).length === 0));
+      expect('IDs and emails are unique', new Set(all.map((e) => e.employeeID)).size === 68 && new Set(all.map((e) => e.email)).size === 68);
+
+      for (const code of codes) {
+        const site = all.filter((e) => e.baseSite === code);
+        const pm = site.filter((e) => e.role === 'PROJECT_MANAGER');
+        expect(code + ': exactly one Project Manager and one PMO', pm.length === 1 && site.filter((e) => e.role === 'PMO').length === 1);
+        expect(code + ': eight department leads, all reporting to the Project Manager',
+          site.filter((e) => e.role === 'DEPT_LEAD').length === 8 && site.filter((e) => e.role === 'DEPT_LEAD').every((e) => e.reportingManagerID === pm[0].employeeID));
+        expect(code + ': every assistant reports to the lead of the same department',
+          site.filter((e) => e.role === 'ASSISTANT_MANAGER').every((e) => { const m = byId.get(e.reportingManagerID); return m && m.role === 'DEPT_LEAD' && m.department === e.department && m.baseSite === code; }));
+        expect(code + ': every staff member reports to an assistant of the same department',
+          site.filter((e) => e.role === 'EMPLOYEE').every((e) => { const m = byId.get(e.reportingManagerID); return m && m.role === 'ASSISTANT_MANAGER' && m.department === e.department; }));
+      }
+      const staff = all.find((e) => e.role === 'EMPLOYEE');
+      const leadership = deriveLeadership(all, staff.employeeID);
+      expect('Team lead and Project Manager are worked out from the chain',
+        leadership.teamLead?.department === staff.department && leadership.projectManager?.baseSite === staff.baseSite && getReportingChain(all, staff.employeeID).length === 3);
+      expect('A mix of statuses and employment types exists', ['Active', 'On Leave', 'Inactive'].every((s) => all.some((e) => e.status === s)) && ['On-roll', 'Off-role'].every((t) => all.some((e) => e.employmentType === t)));
+      expect('Only active employees are marked Available', all.every((e) => (e.status === 'Active') === (e.deploymentStatus === 'Available')));
+
+      const admin = { userID: 'x', systemRole: 'ADMIN' };
+      const pmAll = { userID: 'p', systemRole: 'PM', siteScope: ['KOPPAL', 'FATEHGARH'] };
+      const leadK = { userID: 'l', systemRole: 'LEAD', siteScope: ['KOPPAL'], departmentScope: ['CIVIL'] };
+      expect('Admin and PM see all 68', (await getEmployees(admin)).length === 68 && (await getEmployees(pmAll)).length === 68);
+      expect('A Koppal Lead sees only the 34 Koppal employees', (await getEmployees(leadK)).length === 34);
+    } catch (e) {
+      expect('Unexpected error: ' + e.message, false);
+    }
+    document.getElementById('verdict').textContent =
+      failed === 0 ? 'All good. ' + total + ' of ' + total + ' checks passed.' : failed + ' problem(s). Send me a screenshot.';
+  </script>
+</body>
+</html>
