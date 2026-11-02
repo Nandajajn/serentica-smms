@@ -19,7 +19,7 @@ const ALL = [ROLES.ADMIN, ROLES.LEAD, ROLES.PM];
 export const NAV_ITEMS = Object.freeze([
   { key: 'dashboard',       label: 'Welcome',         href: 'dashboard.html',       icon: 'fa-house',            roles: ALL, built: true,  stage: 2,
     desc: 'Overview of the system and where to start.' },
-  { key: 'employees',       label: 'Employees',       href: 'employees.html',       icon: 'fa-users',            roles: ALL, built: false, stage: 4,
+  { key: 'employees',       label: 'Employees',       href: 'employees.html',       icon: 'fa-users',            roles: ALL, built: true, stage: 4,
     desc: 'Search the employee directory and open employee profiles.' },
   { key: 'organisation',    label: 'Organisation',    href: 'organisation.html',    icon: 'fa-sitemap',          roles: ALL, built: false, stage: 5,
     desc: 'See reporting lines by site, department and manager.' },
