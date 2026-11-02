@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <title>Employee Profile | Serentica Site Manpower Management System</title>
+  <style>
+    .stack > * + * { margin-top: var(--space-5); }
+    .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-5); }
+    dl.facts { display: grid; grid-template-columns: 170px 1fr; gap: 8px 16px; margin: 0; font-size: var(--fs-sm); }
+    dl.facts dt { color: var(--muted); } dl.facts dd { margin: 0; word-break: break-word; }
+    .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+    .badge-ok { background: var(--success-bg); color: var(--success); }
+    .badge-warn { background: var(--warning-bg); color: var(--warning); }
+    .badge-off { background: var(--bg); color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table.table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+    .table th, .table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .table th { background: var(--bg); font-weight: 600; }
+    .small { font-size: var(--fs-sm); }
+    ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: var(--fs-sm); }
+    .card h2 { font-size: var(--fs-base); margin-bottom: var(--space-3); }
+  </style>
+</head>
+<body>
+  <main id="page-content">
+    <div id="profile"></div>
+  </main>
+  <script type="module" src="js/pages/employee-profile.js"></script>
+</body>
+</html>
