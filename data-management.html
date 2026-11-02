@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <title>Data Management | Serentica Site Manpower Management System</title>
+  <style>
+    .stack > * + * { margin-top: var(--space-5); }
+    .card h2 { margin-bottom: var(--space-2); }
+    .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+    .dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: var(--space-5); text-align: center; background: var(--bg); }
+    .dropzone.is-over { border-color: var(--primary); background: var(--primary-tint); }
+    .file-item { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-top: var(--space-4); background: var(--surface); }
+    .file-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+    .sheet { border-top: 1px solid var(--border); margin-top: var(--space-3); padding-top: var(--space-3); }
+    .table-wrap { overflow-x: auto; margin-top: var(--space-2); }
+    table.table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+    .table th, .table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
+    .table td.wrap { white-space: normal; min-width: 220px; }
+    .table th { background: var(--bg); font-weight: 600; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-3); }
+    .stat { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3) var(--space-4); }
+    .stat b { display: block; font-size: var(--fs-xl); }
+    .stat.good b { color: var(--success); } .stat.bad b { color: var(--danger); } .stat.warn b { color: var(--warning); }
+    .badge-ok { background: var(--success-bg); color: var(--success); }
+    .badge-bad { background: var(--danger-bg); color: var(--danger); }
+    details.mapping { margin-top: var(--space-2); }
+    details.mapping summary { cursor: pointer; font-size: var(--fs-sm); color: var(--primary-dark); font-weight: 500; }
+    .small { font-size: var(--fs-sm); }
+    select.input { width: auto; min-width: 150px; }
+    .field-row { display: grid; gap: 4px; }
+    .field-row label { font-size: var(--fs-sm); font-weight: 500; }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <main id="page-content">
+    <div class="page-head">
+      <h1>Data Management</h1>
+      <p>Upload employee data from Excel. The file is read inside your browser. Only its name, size and sheet names are kept, never the file itself.</p>
+    </div>
+    <div id="banner" hidden></div>
+    <div class="stack">
+      <section class="card" id="upload-card"></section>
+      <section class="card" id="results-card" hidden></section>
+      <section class="card" id="history-card"></section>
+      <section class="card" id="files-card"></section>
+    </div>
+  </main>
+  <script type="module" src="js/pages/data-management.js"></script>
+</body>
+</html>
