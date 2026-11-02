@@ -35,6 +35,6 @@ export const NAV_ITEMS = Object.freeze([
     desc: 'Notifications and the audit history of changes.' },
   { key: 'reports',         label: 'Reports',         href: 'reports.html',         icon: 'fa-chart-column',     roles: ALL, built: false, stage: 9,
     desc: 'Headcount, availability and workflow reports.' },
-  { key: 'data-management', label: 'Data Management', href: 'data-management.html', icon: 'fa-file-excel',       roles: ALL, built: false, stage: 6,
+  { key: 'data-management', label: 'Data Management', href: 'data-management.html', icon: 'fa-file-excel',       roles: ALL, built: true, stage: 6,
     desc: 'Import employee data from Excel and review import history.' },
 ]);
