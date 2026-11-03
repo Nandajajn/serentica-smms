@@ -58,7 +58,8 @@ async function render() {
         h('div', { class: 'row' },
           badge(emp.status, emp.status === 'Active' ? 'ok' : emp.status === 'On Leave' ? 'warn' : 'off'),
           badge(avail.available ? 'Available' : emp.deploymentStatus, avail.available ? 'ok' : 'off'),
-          emp.isDemo ? h('span', { class: 'badge badge-demo', text: 'DEMO' }) : null))),
+          emp.isDemo ? h('span', { class: 'badge badge-demo', text: 'DEMO' }) : null,
+          can(session, ACTIONS.EMPLOYEE_EDIT_OPERATIONAL, { site: emp.baseSite, department: emp.department }) ? h('a', { class: 'btn btn-primary', id: 'edit-employee', href: `employee-form.html?id=${encodeURIComponent(emp.employeeID)}` }, h('i', { class: 'fa-solid fa-pen', 'aria-hidden': 'true' }), ' Edit') : null))),
     h('div', { class: 'cols' },
       card('Employment', facts([
         ['Designation', emp.designation], ['Department', deptName(emp.department)], ['Role (level)', roleName(emp.role)],
@@ -90,6 +91,9 @@ async function render() {
         : h('p', { class: 'muted', text: 'No recorded changes.' })),
     h('p', {}, h('a', { href: 'employees.html' }, 'Back to the employee list')),
   ];
+ if (new URLSearchParams(location.search).get('saved')) {
+    out.unshift(h('div', { class: 'alert', role: 'status', id: 'saved-banner', style: 'background:var(--success-bg);border-color:var(--success);color:var(--success)', text: 'Saved. The change is recorded in the history below.' }));
+  }
   root.replaceChildren(h('div', { class: 'stack' }, out));
 }
 
