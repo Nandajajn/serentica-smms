@@ -78,6 +78,7 @@ function renderControls() {
       select('status', 'Status', EMPLOYEE_STATUSES.map((s) => [s, s])),
       select('deploymentStatus', 'Deployment', DEPLOYMENT_STATUSES.map((s) => [s, s])),
       h('div', { class: 'row' },
+      can(session, ACTIONS.EMPLOYEE_ADD) ? h('a', { class: 'btn btn-primary', id: 'add-employee', href: 'employee-form.html' }, h('i', { class: 'fa-solid fa-plus', 'aria-hidden': 'true' }), ' Add employee') : null,
         h('button', { class: 'btn', type: 'button', id: 'reset-filters', onclick: resetFilters }, h('i', { class: 'fa-solid fa-rotate-left', 'aria-hidden': 'true' }), ' Reset'),
         can(session, ACTIONS.EXPORT_DATA) ? h('button', { class: 'btn', type: 'button', id: 'export', onclick: exportCSV }, h('i', { class: 'fa-solid fa-file-csv', 'aria-hidden': 'true' }), ' Export CSV') : null)));
 }
