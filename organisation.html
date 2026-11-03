@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <title>Organisation | Serentica Site Manpower Management System</title>
+  <style>
+    .toolbar { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-3); align-items: end; }
+    .toolbar .wide { grid-column: span 2; }
+    .field-row { display: grid; gap: 4px; }
+    .field-row label { font-size: var(--fs-sm); font-weight: 500; }
+    select.input { width: 100%; }
+    .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+    .small { font-size: var(--fs-sm); }
+    .summary { margin: var(--space-4) 0; }
+    ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; }
+    ul.tree ul { margin-left: 14px; padding-left: 18px; border-left: 2px solid var(--border); }
+    .node { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius); }
+    .node:hover { background: var(--primary-tint); }
+    .node.faded { opacity: .55; }
+    .node .name { font-weight: 600; }
+    .toggle { all: unset; cursor: pointer; width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 4px; color: var(--primary-dark); }
+    .toggle:hover { background: var(--bg); }
+    .toggle:focus-visible { outline: 2px solid var(--primary-dark); outline-offset: 2px; }
+    .spacer { width: 22px; display: inline-block; }
+    .badge-ok { background: var(--success-bg); color: var(--success); }
+    .badge-warn { background: var(--warning-bg); color: var(--warning); }
+    .badge-off { background: var(--bg); color: var(--muted); }
+    .empty { text-align: center; padding: var(--space-6) var(--space-4); color: var(--muted); }
+    .note { color: var(--warning); font-size: var(--fs-sm); }
+  </style>
+</head>
+<body>
+  <main id="page-content">
+    <div class="page-head">
+      <h1>Organisation structure</h1>
+      <p>Who reports to whom, built from the employee records. When someone's manager, department or role changes, this page updates by itself.</p>
+    </div>
+    <div class="card" id="controls"></div>
+    <div class="card" id="tree-card" style="margin-top:24px"></div>
+  </main>
+  <script type="module" src="js/pages/organisation.js"></script>
+</body>
+</html>
