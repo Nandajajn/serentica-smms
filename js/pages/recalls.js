@@ -11,7 +11,6 @@ import { availabilityOf } from '../services/availability-service.js';
 import { actOnRecall, getRecallRequest, getRecallRequests } from '../services/recall-service.js';
 import { $, fmtDateTime, h, put } from '../ui/dom.js';
 const id = new URLSearchParams(location.search).get('id') || '';
-
 const session = initPage({
   pageKey: 'recalls', title: 'Recalls',
   crumbs: id ? [{ label: 'Welcome', href: 'dashboard.html' }, { label: 'Recalls', href: 'recalls.html' }, { label: id }]
