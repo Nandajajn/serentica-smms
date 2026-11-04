@@ -10,14 +10,12 @@ import { getEmployees } from '../services/employee-service.js';
 import { availabilityOf } from '../services/availability-service.js';
 import { actOnRecall, getRecallRequest, getRecallRequests } from '../services/recall-service.js';
 import { $, fmtDateTime, h, put } from '../ui/dom.js';
-
 const id = new URLSearchParams(location.search).get('id') || '';
 const session = initPage({
   pageKey: 'recalls', title: 'Recalls',
   crumbs: id ? [{ label: 'Welcome', href: 'dashboard.html' }, { label: 'Recalls', href: 'recalls.html' }, { label: id }]
     : [{ label: 'Welcome', href: 'dashboard.html' }, { label: 'Recalls' }],
 });
-
 const KIND = { Draft: 'off', Submitted: 'primary', 'Under Review': 'primary', Returned: 'warn', Approved: 'warn', Rejected: 'bad', Confirmed: 'ok', Cancelled: 'off' };
 const statusBadge = (s) => h('span', { class: `badge badge-${KIND[s] || 'off'}`, text: STATUS_LABELS[s] || s });
 const show = (v) => (v === null || v === undefined || v === '' ? '-' : String(v));
