@@ -5,8 +5,8 @@ import { ValidationError } from '../core/validators.js';
 import { ensureSeeded } from '../services/seed-service.js';
 import { createRecallRequest, getRecallRequest, getRecallableEmployees, updateRecallRequest } from '../services/recall-service.js';
 import { $, h } from '../ui/dom.js';
-const id = new URLSearchParams(location.search).get('id') || '';
 
+const id = new URLSearchParams(location.search).get('id') || '';
 const editing = Boolean(id);
 const session = initPage({
   pageKey: 'recalls', title: editing ? 'Edit recall request' : 'New recall request',
