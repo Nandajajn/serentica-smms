@@ -25,7 +25,7 @@ export const NAV_ITEMS = Object.freeze([
     desc: 'See reporting lines by site, department and manager.' },
   { key: 'deployments',     label: 'Deployments',     href: 'deployments.html',     icon: 'fa-people-arrows',    roles: ALL, built: true, stage: 7,
     desc: 'Raise, review, approve and confirm deployment requests.' },
-  { key: 'recalls',         label: 'Recalls',         href: 'recalls.html',         icon: 'fa-rotate-left',      roles: ALL, built: true, stage: 8,
+  { key: 'recalls',         label: 'Recalls',         href: 'recalls.html',         icon: 'fa-rotate-left',      roles: ALL, built: false, stage: 8,
     desc: 'Raise, review, approve and confirm recall requests.' },
   { key: 'availability',    label: 'Availability',    href: 'availability.html',    icon: 'fa-calendar-check',   roles: ALL, built: false, stage: 9,
     desc: 'Workforce availability and allocation by site.' },
