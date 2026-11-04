@@ -1,0 +1,98 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>svc2</title></head><body><p id="verdict"></p><pre id="out"></pre>
+<script type="module">
+import { getAll, getOne, write } from './js/core/store.js';
+import { ensureSeeded } from './js/services/seed-service.js';
+import { createDeploymentRequest, actOnDeployment } from './js/services/deployment-service.js';
+import { createRecallRequest, updateRecallRequest, actOnRecall, getRecallRequests, getRecallRequest, getRecallableEmployees } from './js/services/recall-service.js';
+import { getEmployeeAssignments } from './js/services/assignment-service.js';
+import { availabilityOf } from './js/services/availability-service.js';
+import { PermissionError } from './js/core/access-control.js';
+import { ValidationError } from './js/core/validators.js';
+const out=[]; let bad=0,total=0; const ex=(n,p)=>{total++; if(!p) bad++; out.push((p?'OK: ':'PROBLEM: ')+n)};
+const rej=async(pr,T,f)=>{try{await pr;return false}catch(e){return (!T||e instanceof T)&&(!f||(e.errors&&f in e.errors))}};
+const pm={userID:'U-PM',systemRole:'PM',displayName:'PM',siteScope:['KOPPAL','FATEHGARH'],departmentScope:[]};
+const lead={userID:'U-LEAD',systemRole:'LEAD',displayName:'Lead',siteScope:['KOPPAL','FATEHGARH'],departmentScope:['CIVIL']};
+const lead2={userID:'U-LEAD2',systemRole:'LEAD',displayName:'Lead2',siteScope:['KOPPAL','FATEHGARH'],departmentScope:['CIVIL']};
+const admin={userID:'U-ADMIN',systemRole:'ADMIN',siteScope:[],departmentScope:[]};
+const mk=(id,over={})=>({employeeID:id,employeeName:'Person '+id,designation:'Eng',department:'CIVIL',role:'EMPLOYEE',reportingManagerID:null,employmentType:'On-roll',baseSite:'KOPPAL',currentSite:'KOPPAL',currentProject:'',status:'Active',deploymentStatus:'Available',activeAssignmentID:null,isDemo:false,createdAt:'x',updatedAt:'x',updatedBy:'t',...over});
+const fd=(d)=>{const x=new Date();x.setDate(x.getDate()+d);return x.toISOString().slice(0,10)};
+const dep=(id)=>({employeeID:id,targetSite:'FATEHGARH',targetProject:'Wind',assignmentRole:'Site engineer',startDate:fd(1),expectedEndDate:fd(60),reason:'Support'});
+const rc=(id,o={})=>({employeeID:id,proposedRecallDate:fd(5),reason:'Work completed',remarks:'',...o});
+const ids=['RC-1','RC-2','RC-3','RC-4','RC-FREE'];
+let known={};
+const stores=['auditEvents','deploymentRequests','recallRequests','assignments','decisions','notifications'];
+try{
+  await ensureSeeded();
+  for(const s of stores) known[s]=new Set((await getAll(s)).map(x=>Object.values(x)[0]));
+  await write('employees',async tx=>{for(const i of ids) await tx.put('employees',mk(i));});
+  // deploy RC-1..RC-4 for real through the deployment workflow
+  const asg={};
+  for(const i of ['RC-1','RC-2','RC-3','RC-4']){const r=await createDeploymentRequest(lead,dep(i)); await actOnDeployment(pm,r.requestID,'approve'); const c=await actOnDeployment(pm,r.requestID,'confirm'); asg[i]=c.resultingAssignmentID;}
+  ex('Only deployed employees can be recalled', await rej(createRecallRequest(lead,rc('RC-FREE')),ValidationError,'employeeID'));
+  ex('Admin cannot create a recall', await rej(createRecallRequest(admin,rc('RC-1')),PermissionError));
+  ex('PM cannot create a recall (Lead only)', await rej(createRecallRequest(pm,rc('RC-1')),PermissionError));
+  ex('A recall date before the deployment started is refused', await rej(createRecallRequest(lead,rc('RC-1',{proposedRecallDate:fd(-3)})),ValidationError,'proposedRecallDate'));
+  ex('A past recall date is refused when submitting', await rej(createRecallRequest(lead,rc('RC-1',{proposedRecallDate:'2020-01-01'})),ValidationError,'proposedRecallDate'));
+  ex('A reason is required', await rej(createRecallRequest(lead,rc('RC-1',{reason:''})),ValidationError,'reason'));
+  const list=await getRecallableEmployees(lead);
+  ex('Recallable list: the four deployed people, with their assignments', list.length===4&&list.every(x=>x.assignment.status==='Active'&&x.employee.employeeID===x.assignment.employeeID));
+
+  const r1=await createRecallRequest(lead,rc('RC-1'));
+  ex('Lead submits: Submitted, linked to the active assignment', r1.status==='Submitted'&&r1.assignmentID===asg['RC-1']&&r1.assignmentSite==='FATEHGARH'&&r1.requestID.startsWith('REC-'));
+  let e=await getOne('employees','RC-1');
+  ex('SUBMITTING does not release the employee', e.deploymentStatus==='Deployed'&&e.currentSite==='FATEHGARH'&&e.activeAssignmentID===asg['RC-1']);
+  ex('A second recall for the same employee is refused', await rej(createRecallRequest(lead,rc('RC-1')),ValidationError,'employeeID'));
+  ex('The employee leaves the recallable list', !(await getRecallableEmployees(lead)).some(x=>x.employee.employeeID==='RC-1'));
+  ex('PM notified (simulated)', (await getAll('notifications')).some(n=>n.targetRole==='PM'&&n.relatedRecordID===r1.requestID));
+  ex('Another Lead cannot see it; PM and Admin can', (await getRecallRequest(lead2,r1.requestID))===null&&!!(await getRecallRequest(pm,r1.requestID))&&!!(await getRecallRequest(admin,r1.requestID)));
+  ex('Lead cannot approve, send back or confirm', await rej(actOnRecall(lead,r1.requestID,'approve'),PermissionError)&&await rej(actOnRecall(lead,r1.requestID,'return',{comment:'x y z'}),PermissionError)&&await rej(actOnRecall(lead,r1.requestID,'confirm'),PermissionError));
+  ex('Admin cannot approve', await rej(actOnRecall(admin,r1.requestID,'approve'),PermissionError));
+  ex('Reject needs a reason; send back needs a comment', await rej(actOnRecall(pm,r1.requestID,'reject'),ValidationError,'comment')&&await rej(actOnRecall(pm,r1.requestID,'return'),ValidationError,'comment'));
+  ex('Confirming before approval is refused', await rej(actOnRecall(pm,r1.requestID,'confirm'),Error));
+  const ap=await actOnRecall(pm,r1.requestID,'approve',{comment:'Fine'});
+  e=await getOne('employees','RC-1');
+  ex('APPROVED IS NOT CONFIRMED: employee still deployed, assignment still active', ap.status==='Approved'&&e.deploymentStatus==='Deployed'&&e.currentSite==='FATEHGARH'&&(await getOne('assignments',asg['RC-1'])).status==='Active');
+  ex('Approving twice is refused; stale version refused', await rej(actOnRecall(pm,r1.requestID,'approve'),Error)&&await rej(actOnRecall(pm,r1.requestID,'confirm',{expectedVersion:1}),Error));
+  const cf=await actOnRecall(pm,r1.requestID,'confirm');
+  e=await getOne('employees','RC-1'); const a1=await getOne('assignments',asg['RC-1']);
+  ex('PM confirms: employee back at base site, Available, no assignment', cf.status==='Confirmed'&&e.deploymentStatus==='Available'&&e.currentSite==='KOPPAL'&&e.activeAssignmentID===null&&availabilityOf(e).available);
+  ex('Assignment is Completed with the recall date and the recall id', a1.status==='Completed'&&a1.endDate===r1.proposedRecallDate&&a1.endedByRecallRequestID===r1.requestID);
+  ex('Confirming twice is refused', await rej(actOnRecall(pm,r1.requestID,'confirm'),Error));
+  ex('Audit: employee recalled and request confirmed', (await getAll('auditEvents')).some(x=>x.action==='EMPLOYEE_RECALLED'&&x.recordID==='RC-1')&&(await getAll('auditEvents')).some(x=>x.action==='RECALL_CONFIRM'&&x.recordID===r1.requestID));
+  ex('History order is Submitted > Approved > Confirmed', cf.history.map(h=>h.to).join('>')==='Submitted>Approved>Confirmed');
+  ex('They can now be put into a new deployment (full cycle)', !!(await createDeploymentRequest(lead,dep('RC-1'))));
+  const asgs=await getEmployeeAssignments(pm,'RC-1'); ex('Assignment history lists the completed assignment', asgs.some(a=>a.assignmentID===asg['RC-1']&&a.status==='Completed'));
+  ex('Assignment history is hidden for an employee you cannot see', (await getEmployeeAssignments({userID:'x',systemRole:'PM',siteScope:[],departmentScope:[]},'RC-1')).length===0);
+
+  // reject / return / resubmit / cancel
+  const r2=await createRecallRequest(lead,rc('RC-2'));
+  const rj=await actOnRecall(pm,r2.requestID,'reject',{comment:'Still needed on site'});
+  ex('Rejected recall leaves the employee deployed and free to be requested again', rj.status==='Rejected'&&(await getOne('employees','RC-2')).deploymentStatus==='Deployed'&&(await getRecallableEmployees(lead)).some(x=>x.employee.employeeID==='RC-2'));
+  ex('A rejected request cannot be edited or approved', await rej(updateRecallRequest(lead,r2.requestID,rc('RC-2')),Error)&&await rej(actOnRecall(pm,r2.requestID,'approve'),Error));
+  const r3=await createRecallRequest(lead,rc('RC-3'));
+  const rt=await actOnRecall(pm,r3.requestID,'return',{comment:'Give a better date'});
+  ex('PM sends a recall back', rt.status==='Returned');
+  const ed=await updateRecallRequest(lead,r3.requestID,rc('RC-3',{proposedRecallDate:fd(10),reason:'Handover finished'}),{submit:true});
+  ex('Lead edits and resubmits', ed.status==='Submitted'&&ed.proposedRecallDate===fd(10)&&ed.history.length===3);
+  ex('Another Lead cannot edit it', await rej(updateRecallRequest(lead2,r3.requestID,rc('RC-3')),Error));
+  const dr=await createRecallRequest(lead,rc('RC-4'),{submit:false});
+  ex('Draft is private from the PM and does not block', dr.status==='Draft'&&(await getRecallRequest(pm,dr.requestID))===null&&(await getRecallableEmployees(lead)).some(x=>x.employee.employeeID==='RC-4'));
+  const sb=await actOnRecall(lead,dr.requestID,'submit'); ex('Lead submits the draft', sb.status==='Submitted');
+  const cn=await actOnRecall(lead,dr.requestID,'cancel',{comment:'not needed'}); ex('Lead cancels own submitted recall', cn.status==='Cancelled'&&(await getOne('employees','RC-4')).deploymentStatus==='Deployed');
+  await actOnRecall(pm,ed.requestID,'approve');
+  ex('Lead cannot cancel an approved recall; PM needs a reason', await rej(actOnRecall(lead,ed.requestID,'cancel'),PermissionError)&&await rej(actOnRecall(pm,ed.requestID,'cancel'),ValidationError,'comment'));
+  // employee no longer deployed at confirmation time (assignment ended another way)
+  await write('assignments',async tx=>{const a=await tx.get('assignments',asg['RC-3']); await tx.put('assignments',{...a,status:'Completed'});});
+  ex('Confirmation re-checks the assignment and refuses', await rej(actOnRecall(pm,ed.requestID,'confirm'),ValidationError,'employeeID'));
+  ex('...the request stays Approved and the employee is unchanged', (await getOne('recallRequests',ed.requestID)).status==='Approved'&&(await getOne('employees','RC-3')).deploymentStatus==='Deployed');
+  ex('Lists respect the role', (await getRecallRequests(lead)).every(x=>x.requestedByUserID==='U-LEAD')&&(await getRecallRequests(pm)).length>=3);
+}catch(e){ex('Unexpected error: '+e.message,false)}
+finally{
+  const del={};
+  for(const s of stores) del[s]=(await getAll(s)).filter(x=>!known[s].has(Object.values(x)[0]));
+  const keys={auditEvents:'eventID',deploymentRequests:'requestID',recallRequests:'requestID',assignments:'assignmentID',decisions:'decisionID',notifications:'notificationID'};
+  await write(['employees',...stores],async tx=>{for(const i of ids) await tx.delete('employees',i); for(const s of stores) for(const x of del[s]) await tx.delete(s,x[keys[s]]);});
+  ex('Test records cleaned up',(await getAll('employees')).every(e=>!e.employeeID.startsWith('RC-')));
+}
+document.getElementById('out').textContent=out.join('\n'); document.getElementById('verdict').textContent=bad===0?`All good. ${total} of ${total} checks passed.`:`${bad} problem(s)`;
+</script></body></html>
