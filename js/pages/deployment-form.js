@@ -6,7 +6,6 @@ import { ensureSeeded } from '../services/seed-service.js';
 import { getImportSites } from '../services/import-preview.js';
 import { createDeploymentRequest, getDeployableEmployees, getDeploymentRequest, updateDeploymentRequest } from '../services/deployment-service.js';
 import { $, h } from '../ui/dom.js';
-
 const id = new URLSearchParams(location.search).get('id') || '';
 const editing = Boolean(id);
 const session = initPage({
