@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <title>Recall request | Serentica Site Manpower Management System</title>
+  <style>
+    fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4) var(--space-5); margin: 0 0 var(--space-5); background: var(--surface); }
+    legend { font-weight: 600; padding: 0 var(--space-2); }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 var(--space-5); }
+    .field { margin-bottom: var(--space-3); }
+    .field.wide { grid-column: 1 / -1; }
+    .hint { font-size: var(--fs-sm); color: var(--muted); }
+    .req { color: var(--danger); }
+    .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+    textarea.input { min-height: 80px; resize: vertical; }
+    .returned { background: var(--warning-bg); border: 1px solid var(--warning); color: var(--warning); border-radius: var(--radius); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: var(--fs-sm); }
+  </style>
+</head>
+<body>
+  <main id="page-content">
+    <div id="banner" hidden></div>
+    <div id="form-root"></div>
+  </main>
+  <script type="module" src="js/pages/recall-form.js"></script>
+</body>
+</html>
