@@ -10,7 +10,6 @@ import { OPEN_STATUSES, nextStatus } from '../core/workflow.js';
 import { addAudit } from './audit-service.js';
 import { addNotification } from './notification-service.js';
 import { getEmployees } from './employee-service.js';
-
 const STORES = ['recallRequests', 'employees', 'assignments', 'decisions', 'notifications', 'auditEvents'];
 const today = () => new Date().toISOString().slice(0, 10);
 const text = (v) => String(v ?? '').trim();
