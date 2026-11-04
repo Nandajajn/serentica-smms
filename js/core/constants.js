@@ -23,7 +23,7 @@ export const NAV_ITEMS = Object.freeze([
     desc: 'Search the employee directory and open employee profiles.' },
   { key: 'organisation',    label: 'Organisation',    href: 'organisation.html',    icon: 'fa-sitemap',          roles: ALL, built: true, stage: 5,
     desc: 'See reporting lines by site, department and manager.' },
-  { key: 'deployments',     label: 'Deployments',     href: 'deployments.html',     icon: 'fa-people-arrows',    roles: ALL, built: false, stage: 7,
+  { key: 'deployments',     label: 'Deployments',     href: 'deployments.html',     icon: 'fa-people-arrows',    roles: ALL, built: true, stage: 7,
     desc: 'Raise, review, approve and confirm deployment requests.' },
   { key: 'recalls',         label: 'Recalls',         href: 'recalls.html',         icon: 'fa-rotate-left',      roles: ALL, built: false, stage: 8,
     desc: 'Raise, review, approve and confirm recall requests.' },
