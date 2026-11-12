@@ -1,3 +1,4 @@
+
 // Activity: notifications addressed to you, and the audit history of changes you may see.
 import { initPage, showFatal } from '../core/app-init.js';
 import { ACTIONS, can } from '../core/access-control.js';
