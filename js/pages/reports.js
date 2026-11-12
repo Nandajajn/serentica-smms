@@ -1,3 +1,4 @@
+
 // Reports: pick a report, read it as a table, export it to CSV.
 import { initPage, showFatal } from '../core/app-init.js';
 import { ACTIONS, can } from '../core/access-control.js';
