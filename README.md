@@ -31,6 +31,16 @@ Submitted → Under Review → Approved, Rejected or Returned → Confirmed
 
 Approved is not the same as Confirmed: a person's site and project change only when the request is confirmed.
 
+## Availability rules
+
+Every current employee is in exactly one state, so the counts always add up:
+
+- **Available:** Active, marked Available, and not on an active deployment.
+- **Deployed:** Active and on an active deployment.
+- **Unavailable:** everyone else (for example on leave or inactive).
+
+Exited employees are not counted. Base headcount = Available + Deployed + Unavailable. "Deployed in" counts people from other sites who are working at a site now.
+
 ## Demo logins
 
 | Role | Username | Password |
@@ -53,6 +63,23 @@ These are demo accounts only. Do not reuse these passwords anywhere else.
 | 8 | Recalls | Built |
 | 9 | Availability, Activity (notifications and audit history), Reports | Built |
 | 10 | Performance | Not built |
+
+## Change history
+
+| Stage | What was added |
+|---|---|
+| 2 | Welcome page and sign-in with demo logins for Lead, PM and Admin. |
+| 4 | Employee list, search and profile pages. |
+| 5 | Organisation: sites, projects and departments. |
+| 6 | Excel import of employees with checks and import history. |
+| 7 | Deployment requests with the full review, approval and confirmation flow. |
+| 8 | Recall requests, assignment tracking, and assignment and recall lists on the employee profile. |
+| 9 | Availability page (Available, Deployed, Unavailable), 7 reports with CSV export, and an Activity page with notifications and audit history. |
+
+Other project work (outside the code):
+
+- Comparison workbook (Excel) of SMMS against Azotos, Saviom and CatBuild 360, with a cost-benefit analysis. Vendor prices in it are placeholders until real quotes arrive.
+- Draft demo-request emails to the three vendors and an approval note to the manager.
 
 ## How it is built
 
