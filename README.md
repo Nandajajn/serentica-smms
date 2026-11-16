@@ -62,7 +62,7 @@ These are demo accounts only. Do not reuse these passwords anywhere else.
 | 7 | Deployments | Built |
 | 8 | Recalls | Built |
 | 9 | Availability, Activity (notifications and audit history), Reports | Built |
-| 10 | Performance | Not built |
+| 10 | Performance (quarterly reviews, ratings by site and department) | Built |
 
 ## Change history
 
@@ -75,6 +75,7 @@ These are demo accounts only. Do not reuse these passwords anywhere else.
 | 7 | Deployment requests with the full review, approval and confirmation flow. |
 | 8 | Recall requests, assignment tracking, and assignment and recall lists on the employee profile. |
 | 9 | Availability page (Available, Deployed, Unavailable), 7 reports with CSV export, and an Activity page with notifications and audit history. |
+| 10 | Performance: PM-recorded quarterly reviews (5 criteria, rated 1 to 5), Performance page with ratings by site and department, and a review card on the employee profile. |
 
 Other project work (outside the code):
 
