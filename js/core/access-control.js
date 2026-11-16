@@ -35,6 +35,8 @@ export const ACTIONS = Object.freeze({
   IMPORT_UPLOAD: 'import.upload',
   IMPORT_CONFIRM: 'import.confirm',
   FILE_REMOVE: 'file.remove',                // removes the file reference only
+  // performance
+  REVIEW_RECORD: 'review.record',            // record or update a performance review (PM only)
 });
 const A = ACTIONS;
 
