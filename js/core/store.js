@@ -6,7 +6,7 @@
 import { emit, on } from './event-bus.js';
 
 const DB_NAME = 'serentica_smm_v1';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // store name -> key field
 export const STORES = Object.freeze({
@@ -21,7 +21,8 @@ export const STORES = Object.freeze({
   importBatches: 'batchID',
   uploadedFiles: 'fileID',
   notifications: 'notificationID',
-  auditEvents: 'eventID',
+    auditEvents: 'eventID',
+  performanceReviews: 'reviewID',
   meta: 'key',
 });
 
