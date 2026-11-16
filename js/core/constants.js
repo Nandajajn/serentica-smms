@@ -29,7 +29,7 @@ export const NAV_ITEMS = Object.freeze([
     desc: 'Raise, review, approve and confirm recall requests.' },
   { key: 'availability',    label: 'Availability',    href: 'availability.html',    icon: 'fa-calendar-check',   roles: ALL, built: true, stage: 9,
     desc: 'Workforce availability and allocation by site.' },
-  { key: 'performance',     label: 'Performance',     href: 'performance.html',     icon: 'fa-chart-line',       roles: ALL, built: false, stage: 10,
+  { key: 'performance',     label: 'Performance',     href: 'performance.html',     icon: 'fa-chart-line',       roles: ALL, built: true, stage: 10,
     desc: 'Performance indicators to support deployment decisions.' },
   { key: 'notifications',   label: 'Activity',        href: 'notifications.html',   icon: 'fa-bell',             roles: ALL, built: true, stage: 9,
     desc: 'Notifications and the audit history of changes.' },
