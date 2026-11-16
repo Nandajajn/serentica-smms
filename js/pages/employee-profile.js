@@ -6,6 +6,8 @@ import { DEPARTMENTS, ORG_ROLES } from '../core/reference-data.js';
 import { ensureSeeded } from '../services/seed-service.js';
 import { deriveLeadership, getEmployeeById, getEmployees, getReportingChain } from '../services/employee-service.js';
 import { getAuditHistory } from '../services/audit-service.js';
+import { getEmployeeAssignments } from '../services/assignment-service.js';
+import { getRecallRequests } from '../services/recall-service.js';
 import { availabilityOf } from '../services/availability-service.js';
 import { bandOf, getEmployeeReviews } from '../services/performance-service.js';
 import { $, fmtDateTime, h, put } from '../ui/dom.js';
@@ -26,11 +28,11 @@ const link = (e) => h('a', { href: `employee-profile.html?id=${encodeURIComponen
 const badge = (text, kind) => h('span', { class: `badge badge-${kind}`, text });
 
 const ACTION_LABELS = {
-    EMPLOYEE_ADD: 'Added', EMPLOYEE_UPDATE: 'Updated', EMPLOYEE_IMPORT_ADD: 'Created by Excel import', EMPLOYEE_IMPORT_UPDATE: 'Updated by Excel import',
+  EMPLOYEE_ADD: 'Added', EMPLOYEE_UPDATE: 'Updated', EMPLOYEE_IMPORT_ADD: 'Created by Excel import', EMPLOYEE_IMPORT_UPDATE: 'Updated by Excel import',
   PERFORMANCE_REVIEW_ADD: 'Performance review recorded', PERFORMANCE_REVIEW_UPDATE: 'Performance review updated',
 };
 function describeChange(ev) {
-    if (ev.action.startsWith('PERFORMANCE_REVIEW')) return ev.reason;
+  if (ev.action.startsWith('PERFORMANCE_REVIEW')) return ev.reason;
   if (!ev.before && ev.after) return ev.action.endsWith('ADD') ? 'Record created' : '';
   return Object.keys(ev.after || {}).slice(0, 5).map((k) => `${k}: ${show(ev.before?.[k])} -> ${show(ev.after[k])}`).join('; ');
 }
@@ -51,8 +53,11 @@ async function render() {
   const chain = getReportingChain(all, emp.employeeID);
   const reports = all.filter((e) => e.reportingManagerID === emp.employeeID).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   const avail = availabilityOf(emp);
-  const history = (await getAuditHistory(session)).filter((e) => e.recordType === 'employee' && e.recordID === emp.employeeID).slice(0, 25);
+  const assignments = await getEmployeeAssignments(session, emp.employeeID);
   const reviews = await getEmployeeReviews(session, emp.employeeID);
+  const recalls = (await getRecallRequests(session)).filter((r) => r.employeeID === emp.employeeID);
+  const history = (await getAuditHistory(session)).filter((e) => e.recordType === 'employee' && e.recordID === emp.employeeID).slice(0, 25);
+
   const out = [
     h('div', { class: 'card' },
       h('div', { class: 'row', style: 'justify-content:space-between' },
@@ -82,7 +87,7 @@ async function render() {
       can(session, ACTIONS.VIEW_SENSITIVE)
         ? card('Personal details', facts([['Gender', emp.gender], ['Date of birth', emp.dateOfBirth], ['Blood group', emp.bloodGroup], ['Emergency contact', emp.emergencyContact]]))
         : card('Personal details', h('p', { class: 'muted small', text: 'These details are hidden for your role.' })),
-          card('Performance',
+      card('Performance',
         reviews.length
           ? h('div', {}, h('p', { id: 'latest-rating' }, h('strong', { text: `${reviews[0].overall} of 5` }), ` - ${bandOf(reviews[0].overall)} (${reviews[0].period})`),
             h('div', { class: 'table-wrap' }, h('table', { class: 'table', id: 'review-table' },
@@ -90,8 +95,14 @@ async function render() {
               h('tbody', {}, reviews.slice(0, 5).map((r) => h('tr', {}, h('td', { text: r.period }), h('td', { text: String(r.overall) }), h('td', { text: r.reviewerName }), h('td', { class: 'wrap', text: r.comments || '' })))))))
           : h('p', { class: 'muted', id: 'not-assessed', text: 'Not assessed yet.' }),
         can(session, ACTIONS.REVIEW_RECORD) && emp.status !== 'Exited' ? h('p', { style: 'margin-top:12px' }, h('a', { class: 'btn', id: 'record-review', href: `review-form.html?id=${encodeURIComponent(emp.employeeID)}` }, h('i', { class: 'fa-solid fa-star', 'aria-hidden': 'true' }), ' Record review')) : null),
-      card('Deployment and recall history', h('p', { class: 'muted', text: 'No deployments or recalls recorded yet.' }),
-        h('p', { class: 'small muted', text: 'History appears here once the deployment and recall workflows are built.' })),
+      card('Deployment and recall history',
+        assignments.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table', id: 'assignment-table' },
+          h('thead', {}, h('tr', {}, ['Site / project', 'Role', 'Start', 'End', 'Status'].map((t) => h('th', { text: t })))),
+          h('tbody', {}, assignments.map((a) => h('tr', {}, h('td', { text: `${a.site} / ${a.project}` }), h('td', { text: show(a.role) }), h('td', { text: show(a.startDate) }),
+            h('td', { text: show(a.endDate) }), h('td', {}, badge(a.status, a.status === 'Active' ? 'ok' : 'off')))))))
+          : h('p', { class: 'muted', text: 'No deployments recorded yet.' }),
+        recalls.length ? h('ul', { class: 'plain', id: 'recall-list', style: 'margin-top:12px' }, recalls.map((r) => h('li', {},
+          h('a', { href: `recalls.html?id=${encodeURIComponent(r.requestID)}`, text: r.requestID }), ` - recall on ${r.proposedRecallDate}, ${r.status}`))) : null),
       card('Training and documents', h('p', { class: 'muted', text: 'Not available yet.' }))),
     card('Change history',
       history.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table', id: 'history-table' },
@@ -101,7 +112,7 @@ async function render() {
         : h('p', { class: 'muted', text: 'No recorded changes.' })),
     h('p', {}, h('a', { href: 'employees.html' }, 'Back to the employee list')),
   ];
- if (new URLSearchParams(location.search).get('saved')) {
+  if (new URLSearchParams(location.search).get('saved')) {
     out.unshift(h('div', { class: 'alert', role: 'status', id: 'saved-banner', style: 'background:var(--success-bg);border-color:var(--success);color:var(--success)', text: 'Saved. The change is recorded in the history below.' }));
   }
   root.replaceChildren(h('div', { class: 'stack' }, out));
@@ -114,6 +125,8 @@ async function start() {
     await render();
     subscribe('employees', () => render());
     subscribe('auditEvents', () => render());
+    subscribe('assignments', () => render());
+    subscribe('recallRequests', () => render());
     subscribe('performanceReviews', () => render());
   } catch (err) {
     showFatal(err.message);
